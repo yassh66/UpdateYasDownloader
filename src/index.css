@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", "Vazirmatn", "Segoe UI", Tahoma, ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", "Vazirmatn", "Segoe UI", Tahoma, ui-sans-serif, system-ui, sans-serif;
+}
+
+[dir="rtl"] {
+  font-family: "Vazirmatn", "Segoe UI", Tahoma, sans-serif;
+}
+
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select,
+[dir="rtl"] button {
+  font-family: inherit;
+}
+
+/* Ensure numbers/URLs stay LTR in RTL mode */
+[dir="rtl"] .font-mono,
+[dir="rtl"] input[type="url"],
+[dir="rtl"] input[type="number"],
+[dir="rtl"] .ltr-force {
+  direction: ltr;
+  text-align: left;
+}
+
+body {
+  background-color: #05050A;
+  color: #F8FAFC;
+  overflow: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+body.light {
+  background-color: #F8FAFC;
+  color: #0F172A;
+}
+
+/* Draggable app regions for Electron frameless windows */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Custom Luxury Scrollbar Matching YAS Downloader Purple/Pink Aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(10, 10, 20, 0.4);
+  border-radius: 9999px;
+}
+
+.light ::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.6);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.4) 0%, rgba(236, 72, 153, 0.4) 100%);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.45) 0%, rgba(217, 70, 239, 0.45) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.15);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.7) 0%, rgba(236, 72, 153, 0.7) 100%);
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(147, 51, 234, 0.75) 0%, rgba(192, 38, 211, 0.75) 100%);
+}
+
+/* Firefox Scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 85, 247, 0.4) rgba(10, 10, 20, 0.4);
+}
+
+.light * {
+  scrollbar-color: rgba(168, 85, 247, 0.45) rgba(226, 232, 240, 0.6);
+}
+
+/* Smooth layout transitions and overflow stabilization */
+.stable-scroll-container {
+  overflow-y: overlay;
+  overflow-x: hidden;
+}
+

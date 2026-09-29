@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "YAS Downloader Integration",
+  "version": "1.1.0",
+  "description": "Automatic download interception and context menu integration for YAS Downloader",
+  "permissions": [
+    "contextMenus",
+    "nativeMessaging",
+    "downloads",
+    "cookies",
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
+

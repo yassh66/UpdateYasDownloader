@@ -1,0 +1,96 @@
+{
+  "name": "yas-downloader",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Next-generation high-speed download manager for Windows",
+  "author": "YAS Downloader",
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dev": "vite --port=3000 --host=0.0.0.0",
+    "build": "vite build",
+    "build:electron": "esbuild electron/main.ts --outfile=dist-electron/main.cjs --platform=node --format=cjs --bundle --external:electron && esbuild electron/preload.ts --outfile=dist-electron/preload.cjs --platform=node --format=cjs --bundle --external:electron && esbuild electron/downloadDialogPreload.ts --outfile=dist-electron/downloadDialogPreload.cjs --platform=node --format=cjs --bundle --external:electron && esbuild electron/nm-host.ts --outfile=dist-electron/nm-host.cjs --platform=node --format=cjs --bundle --external:electron && pkg dist-electron/nm-host.cjs -t node18-win-x64 -o dist-electron/yas-nm-host.exe",
+    "setup:bin": "node scripts/ensure-binaries.mjs",
+    "build:all": "npm run setup:bin && npm run build && npm run build:electron",
+    "pack": "npm run setup:bin && npm run build && npm run build:electron && electron-builder --win --dir",
+    "dist": "npm run setup:bin && npm run build && npm run build:electron && electron-builder --win",
+    "dist:win": "npm run setup:bin && npm run build && npm run build:electron && electron-builder --win",
+    "preview": "vite preview",
+    "clean": "rm -rf dist dist-electron dist-app",
+    "lint": "tsc --noEmit"
+  },
+  "build": {
+    "appId": "com.yas.downloader",
+    "productName": "YAS Downloader",
+    "directories": {
+      "output": "dist-app",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "YAS Downloader"
+    },
+    "extraResources": [
+      {
+        "from": "bin",
+        "to": "bin",
+        "filter": [
+          "**/*",
+          "!*.md",
+          "!*.gitkeep",
+          "!*.zip",
+          "!*.tmp*"
+        ]
+      }
+    ],
+    "extraFiles": [
+      {
+        "from": "dist-electron/yas-nm-host.exe",
+        "to": "yas-nm-host.exe"
+      }
+    ],
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "build/icon.ico",
+      "build/icon.png",
+      "package.json"
+    ]
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "bluebird": "^3.7.2",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "vite": "^6.2.3"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.0",
+    "autoprefixer": "^10.4.21",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.25.0",
+    "pkg": "^5.8.1",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3"
+  }
+}
