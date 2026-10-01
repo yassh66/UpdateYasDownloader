@@ -70,36 +70,42 @@ export default function BatchDownloadModal({ isOpen, onClose }: BatchDownloadMod
       />
       
       {/* Modal */}
-      <div className={`relative w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 transition-colors ${
-        isLight
-          ? 'bg-white/95 border border-purple-200/90 shadow-[0_20px_60px_-15px_rgba(112,26,117,0.12)]'
-          : 'bg-[#0C0C18] border border-purple-500/20'
-      }`}>
+      <div 
+        className={`relative w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 transition-colors ${
+          isLight
+            ? 'bg-white/95 border shadow-[0_20px_60px_-15px_rgba(0,0,0,0.12)]'
+            : 'bg-[#0C0C18] border'
+        }`}
+        style={{ borderColor: 'var(--accent-border)' }}
+      >
         <div className={`flex items-center justify-between px-6 py-4 transition-colors ${
           isLight 
-            ? 'border-b border-purple-100 bg-slate-50/60' 
-            : 'border-b border-purple-500/10 bg-black/30'
+            ? 'border-b border-slate-200/80 bg-slate-50/60' 
+            : 'border-b border-white/5 bg-black/30'
         }`}>
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-xl border ${
-              isLight 
-                ? 'bg-purple-50 border-purple-200 text-purple-600' 
-                : 'bg-purple-500/10 border-purple-500/20 text-fuchsia-400'
-            }`}>
+            <div 
+              className="p-2 rounded-xl border"
+              style={{
+                backgroundColor: 'var(--accent-soft)',
+                borderColor: 'var(--accent-border)',
+                color: 'var(--accent-text)',
+              }}
+            >
               <ListPlus size={18} />
             </div>
             <div>
               <h3 className={`font-display font-medium text-sm ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
                 {t('batchModal.title')}
               </h3>
-              <p className={`text-[11px] ${isLight ? 'text-purple-700' : 'text-purple-300/70'}`}>
+              <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                 {t('batchModal.subtitle')}
               </p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className={`p-1.5 rounded-lg transition-colors ${
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
               isLight 
                 ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' 
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -117,9 +123,8 @@ export default function BatchDownloadModal({ isOpen, onClose }: BatchDownloadMod
               </label>
               <button 
                 onClick={handlePaste}
-                className={`text-[11px] flex items-center gap-1 transition-colors ${
-                  isLight ? 'text-pink-600 hover:text-pink-700 font-medium' : 'text-pink-400 hover:text-pink-300'
-                }`}
+                className="text-[11px] flex items-center gap-1 transition-colors font-medium cursor-pointer"
+                style={{ color: 'var(--accent-text)' }}
               >
                 <LinkIcon size={12} /> {t('batchModal.paste')}
               </button>
@@ -129,24 +134,36 @@ export default function BatchDownloadModal({ isOpen, onClose }: BatchDownloadMod
               onChange={(e) => setUrlsText(e.target.value)}
               placeholder="https://example.com/file1.zip&#10;https://example.com/file2.mp4"
               rows={6}
-              className={`w-full rounded-xl p-3 text-xs font-mono resize-none stable-scroll-container focus:outline-none focus:ring-1 ${
+              className={`w-full rounded-xl p-3 text-xs font-mono resize-none stable-scroll-container focus:outline-none ${
                 isLight
-                  ? 'bg-slate-50 border border-purple-200/90 text-slate-800 placeholder-slate-400 focus:border-purple-600 focus:ring-purple-500/20'
-                  : 'bg-[#080814] border border-purple-500/20 text-slate-200 placeholder-slate-500 focus:border-fuchsia-500/50 focus:ring-fuchsia-500/50'
+                  ? 'bg-slate-50 text-slate-800 placeholder-slate-400'
+                  : 'bg-[#080814] text-slate-200 placeholder-slate-500'
               }`}
+              style={{
+                border: '1px solid var(--accent-border)',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = 'var(--accent)';
+                e.currentTarget.style.boxShadow = 'var(--accent-glow-sm)';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = 'var(--accent-border)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
             />
           </div>
 
-          <div className={`flex items-center justify-between text-xs border-t pt-4 ${
-            isLight ? 'border-purple-100 text-slate-600' : 'border-purple-500/10 text-slate-400'
-          }`}>
-            <span className={`font-medium ${isLight ? 'text-purple-800' : 'text-purple-300'}`}>
+          <div 
+            className="flex items-center justify-between text-xs border-t pt-4"
+            style={{ borderColor: 'var(--accent-border)' }}
+          >
+            <span className="font-medium" style={{ color: 'var(--accent-text)' }}>
               {validUrls.length} {t('batchModal.validCount')}
             </span>
             <div className="flex items-center gap-2.5">
               <button 
                 onClick={onClose}
-                className={`px-4 py-2 rounded-xl text-xs font-medium transition-colors ${
+                className={`px-4 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
                   isLight 
                     ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' 
                     : 'text-slate-400 hover:text-white hover:bg-white/5'

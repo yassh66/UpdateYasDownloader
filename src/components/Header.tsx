@@ -6,6 +6,7 @@ import ScheduleDownloadModal from './ScheduleDownloadModal';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useMediaDownload } from '../context/MediaDownloadContext';
+import { useAccent } from '../context/AccentContext';
 
 export default function Header() {
   const [url, setUrl] = useState('');
@@ -14,6 +15,7 @@ export default function Header() {
   const { openMediaDialog } = useMediaDownload();
   const { theme, toggleTheme } = useTheme();
   const { t } = useLanguage();
+  const { tokens } = useAccent();
   const isLight = theme === 'light';
 
   const handleStartDownload = async () => {
@@ -83,21 +85,23 @@ export default function Header() {
   }, [url]);
 
   return (
-    <header className={`h-20 shrink-0 flex items-center justify-between px-6 border-b transition-colors duration-200 relative z-10 ${
-      isLight 
-        ? 'border-purple-900/10 bg-white/75 backdrop-blur-md shadow-[0_4px_20px_rgba(112,26,117,0.03)]' 
-        : 'border-white/5 bg-[#090915]/60 backdrop-blur-md'
-    }`}>
+    <header 
+      className={`h-20 shrink-0 flex items-center justify-between px-6 border-b transition-colors duration-200 relative z-10 ${
+        isLight 
+          ? 'bg-white/75 backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.02)]' 
+          : 'bg-[#090915]/60 backdrop-blur-md'
+      }`}
+      style={{ borderColor: 'var(--accent-border)' }}
+    >
       
       <div className="flex items-center justify-between w-full gap-4">
         {/* Expanded Premium URL Input */}
         <div className="flex-1 max-w-2xl relative group">
           <div className="absolute inset-y-0 left-0 pl-4 rtl:left-auto rtl:right-0 rtl:pl-0 rtl:pr-4 flex items-center pointer-events-none">
-            <LinkIcon className={`transition-colors size-4 ${
-              isLight 
-                ? 'text-purple-500/70 group-focus-within:text-purple-600' 
-                : 'text-purple-400/60 group-focus-within:text-pink-400'
-            }`} />
+            <LinkIcon 
+              className="transition-colors size-4 text-slate-400 group-focus-within:opacity-100" 
+              style={{ color: 'var(--accent)' }}
+            />
           </div>
           <input 
             type="url" 
@@ -105,22 +109,37 @@ export default function Header() {
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={t('header.placeholder')} 
-            className={`w-full rounded-xl py-2.5 pl-11 pr-24 rtl:pl-24 rtl:pr-11 text-xs font-mono truncate transition-all focus:outline-none focus:ring-2 ${
+            className={`w-full rounded-xl py-2.5 pl-11 pr-24 rtl:pl-24 rtl:pr-11 text-xs font-mono truncate transition-all focus:outline-none ${
               isLight
-                ? 'bg-white/95 border border-purple-200/90 focus:border-purple-500 hover:border-purple-300 text-slate-800 placeholder-slate-400 focus:ring-purple-500/15 shadow-[0_2px_8px_rgba(0,0,0,0.03)]'
-                : 'bg-[#10101E]/90 border border-purple-500/15 focus:border-fuchsia-500/50 hover:border-purple-500/30 text-slate-200 placeholder-slate-500 focus:ring-purple-500/20 shadow-inner'
+                ? 'bg-white/95 text-slate-800 placeholder-slate-400 shadow-[0_2px_8px_rgba(0,0,0,0.03)]'
+                : 'bg-[#10101E]/90 text-slate-200 placeholder-slate-500 shadow-inner'
             }`}
+            style={{
+              border: `1px solid var(--accent-border)`,
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = 'var(--accent)';
+              e.currentTarget.style.boxShadow = isLight ? 'var(--accent-glow-sm)' : '0 0 15px rgba(var(--accent-rgb), 0.25)';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = 'var(--accent-border)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
           />
           <div className="absolute inset-y-0 right-1.5 rtl:right-auto rtl:left-1.5 flex items-center">
             <button 
               onClick={handlePaste} 
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1.5 shadow-sm ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${
                 isLight
-                  ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-950 border border-purple-200/90'
-                  : 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-200 hover:text-white border border-purple-500/20'
+                  ? 'text-slate-700 hover:text-slate-900'
+                  : 'text-slate-300 hover:text-white'
               }`}
+              style={{
+                backgroundColor: 'var(--accent-soft)',
+                border: '1px solid var(--accent-border)',
+              }}
             >
-              <LinkIcon size={12} />
+              <LinkIcon size={12} style={{ color: 'var(--accent)' }} />
               {t('header.pasteBtn')}
             </button>
           </div>
@@ -132,14 +151,15 @@ export default function Header() {
           <button
             onClick={toggleTheme}
             title={isLight ? t('header.switchToDark') : t('header.switchToLight')}
-            className={`p-2 rounded-xl transition-all duration-200 border flex items-center justify-center active:scale-95 shadow-sm ${
+            className={`p-2 rounded-xl transition-all duration-200 border flex items-center justify-center active:scale-95 shadow-sm cursor-pointer ${
               isLight
-                ? 'bg-white/90 hover:bg-purple-50 text-purple-700 border-purple-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
-                : 'bg-white/[0.04] hover:bg-purple-500/10 text-slate-300 hover:text-white border-purple-500/15'
+                ? 'bg-white/90 hover:bg-slate-50 text-slate-700'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-300'
             }`}
+            style={{ borderColor: 'var(--accent-border)' }}
           >
             {isLight ? (
-              <Moon size={15} className="text-purple-600 transition-transform duration-300 hover:rotate-12" />
+              <Moon size={15} style={{ color: 'var(--accent)' }} className="transition-transform duration-300 hover:rotate-12" />
             ) : (
               <Sun size={15} className="text-amber-300 transition-transform duration-300 hover:rotate-45" />
             )}
@@ -150,7 +170,7 @@ export default function Header() {
             onClick={() => setIsScheduleModalOpen(true)} 
             className="text-xs py-2 px-3.5"
           >
-            <Clock size={14} className={isLight ? "text-purple-600" : "text-purple-400"} />
+            <Clock size={14} style={{ color: 'var(--accent)' }} />
             {t('header.scheduleBtn')}
           </GlassButton>
 
@@ -169,7 +189,7 @@ export default function Header() {
             onClick={() => setIsBatchModalOpen(true)} 
             className="text-xs py-2 px-3.5"
           >
-            <ListPlus size={14} className={isLight ? "text-fuchsia-600" : "text-fuchsia-400"} />
+            <ListPlus size={14} style={{ color: 'var(--accent)' }} />
             {t('header.batchBtn')}
           </GlassButton>
 

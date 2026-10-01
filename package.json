@@ -17,7 +17,8 @@
     "dist:win": "npm run setup:bin && npm run build && npm run build:electron && electron-builder --win",
     "preview": "vite preview",
     "clean": "rm -rf dist dist-electron dist-app",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "tsx electron/media/test/engineResilienceTest.ts"
   },
   "build": {
     "appId": "com.yas.downloader",

@@ -29,6 +29,8 @@ import { mediaDownloadManager, MediaDownloadManager } from './download/mediaDown
 import { sessionManager, SessionManager } from './session/sessionManager';
 import { mediaCleanupService, MediaCleanupService } from './cleanup/mediaCleanupService';
 import { mediaHistoryStore, MediaHistoryStore } from './storage/mediaHistoryStore';
+import { extractionStrategyManager, ExtractionStrategyManager } from './strategy/extractionStrategyManager';
+import { MediaDiagnosticsLogger } from './diagnostics/mediaDiagnosticsLogger';
 
 export class MediaEngine {
   public readonly registry: ExtractorRegistry = extractorRegistry;
@@ -42,6 +44,8 @@ export class MediaEngine {
   public readonly sessionManager: SessionManager = sessionManager;
   public readonly cleanupService: MediaCleanupService = mediaCleanupService;
   public readonly historyStore: MediaHistoryStore = mediaHistoryStore;
+  public readonly strategyManager: ExtractionStrategyManager = extractionStrategyManager;
+  public readonly diagnosticsLogger = MediaDiagnosticsLogger;
 
   /**
    * Registers a platform extractor into the Media Engine registry.

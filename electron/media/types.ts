@@ -20,6 +20,8 @@ export type MediaDownloadStage =
   | 'downloading_stream'
   | 'merging_streams'
   | 'converting_audio'
+  | 'verifying'
+  | 'retrying'
   | 'completed'
   | 'error'
   | 'cancelled';

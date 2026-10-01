@@ -5,6 +5,25 @@
   --font-display: "Outfit", "Vazirmatn", "Segoe UI", Tahoma, ui-sans-serif, system-ui, sans-serif;
 }
 
+:root {
+  --accent: #6E4BFF;
+  --accent-rgb: 110, 75, 255;
+  --accent-hover: #8161FF;
+  --accent-active: #5E3CE6;
+  --accent-soft: rgba(110, 75, 255, 0.16);
+  --accent-subtle: rgba(110, 75, 255, 0.07);
+  --accent-surface: rgba(110, 75, 255, 0.035);
+  --accent-border: rgba(110, 75, 255, 0.24);
+  --accent-border-strong: rgba(110, 75, 255, 0.50);
+  --accent-glow: 0 0 25px rgba(110, 75, 255, 0.45);
+  --accent-glow-sm: 0 0 12px rgba(110, 75, 255, 0.35);
+  --accent-glow-lg: 0 0 45px rgba(110, 75, 255, 0.40);
+  --accent-text: #A78BFA;
+  --accent-contrast: #FFFFFF;
+  --accent-gradient-start: #6E4BFF;
+  --accent-gradient-end: #EC4899;
+}
+
 [dir="rtl"] {
   font-family: "Vazirmatn", "Segoe UI", Tahoma, sans-serif;
 }
@@ -46,7 +65,7 @@ body.light {
   -webkit-app-region: no-drag;
 }
 
-/* Custom Luxury Scrollbar Matching YAS Downloader Purple/Pink Aesthetic */
+/* Custom Luxury Scrollbar Matching YAS Downloader Dynamic Accent System */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -62,32 +81,36 @@ body.light {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(168, 85, 247, 0.4) 0%, rgba(236, 72, 153, 0.4) 100%);
+  background: linear-gradient(180deg, var(--accent-gradient-start) 0%, var(--accent-gradient-end) 100%);
+  opacity: 0.7;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .light ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(168, 85, 247, 0.45) 0%, rgba(217, 70, 239, 0.45) 100%);
-  border: 1px solid rgba(168, 85, 247, 0.15);
+  background: linear-gradient(180deg, var(--accent-gradient-start) 0%, var(--accent-gradient-end) 100%);
+  opacity: 0.8;
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(168, 85, 247, 0.7) 0%, rgba(236, 72, 153, 0.7) 100%);
+  background: linear-gradient(180deg, var(--accent-hover) 0%, var(--accent-gradient-end) 100%);
+  filter: brightness(1.15);
 }
 
 .light ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(147, 51, 234, 0.75) 0%, rgba(192, 38, 211, 0.75) 100%);
+  background: linear-gradient(180deg, var(--accent-hover) 0%, var(--accent-gradient-end) 100%);
+  filter: brightness(0.95);
 }
 
 /* Firefox Scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(168, 85, 247, 0.4) rgba(10, 10, 20, 0.4);
+  scrollbar-color: var(--accent) rgba(10, 10, 20, 0.4);
 }
 
 .light * {
-  scrollbar-color: rgba(168, 85, 247, 0.45) rgba(226, 232, 240, 0.6);
+  scrollbar-color: var(--accent) rgba(226, 232, 240, 0.6);
 }
 
 /* Smooth layout transitions and overflow stabilization */

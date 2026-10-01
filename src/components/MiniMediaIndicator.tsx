@@ -15,11 +15,13 @@ import {
 import { useMediaDownload } from '../context/MediaDownloadContext';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useAccent } from '../context/AccentContext';
 
 export default function MiniMediaIndicator() {
   const { isMinimized, activeJob, currentUrl, restoreMediaDialog, closeMediaDialog, setActiveJob } = useMediaDownload();
   const { theme } = useTheme();
   const { isRTL } = useLanguage();
+  const { tokens } = useAccent();
   const isLight = theme === 'light';
 
   // Show indicator if minimized and there is an active job, or an active analyzed URL
@@ -218,9 +220,15 @@ export default function MiniMediaIndicator() {
                   ? 'bg-amber-500'
                   : isError
                   ? 'bg-rose-500'
-                  : 'bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500'
+                  : ''
               }`}
-              style={{ width: `${Math.max(2, percent)}%` }}
+              style={{ 
+                width: `${Math.max(2, percent)}%`,
+                background: (!isCompleted && !isPaused && !isError) 
+                  ? `linear-gradient(to right, var(--accent-gradient-start), var(--accent-gradient-end))`
+                  : undefined,
+                boxShadow: (!isCompleted && !isPaused && !isError) ? 'var(--accent-glow-sm)' : undefined,
+              }}
             />
           </div>
 

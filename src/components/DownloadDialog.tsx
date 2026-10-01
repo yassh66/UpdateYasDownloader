@@ -112,36 +112,42 @@ export default function DownloadDialog({ isOpen, data, onClose, onConfirm }: Dow
       <div 
         className={`w-full max-w-lg rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col gap-6 transition-colors ${
           isLight 
-            ? 'bg-white/95 border border-purple-200/90 text-slate-900 shadow-[0_20px_60px_-15px_rgba(112,26,117,0.12)]' 
-            : 'bg-[#0C0C18] border border-purple-500/20 text-white shadow-2xl'
+            ? 'bg-white/95 text-slate-900 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.12)]' 
+            : 'bg-[#0C0C18] text-white shadow-2xl'
         }`}
+        style={{ borderColor: 'var(--accent-border)', border: '1px solid var(--accent-border)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Glow accent */}
-        <div className={`absolute top-0 right-0 -mt-8 -mr-8 w-40 h-40 rounded-full blur-3xl pointer-events-none ${
-          isLight
-            ? 'bg-gradient-to-br from-purple-400/20 via-pink-400/20 to-transparent'
-            : 'bg-gradient-to-br from-purple-600/20 via-pink-600/20 to-transparent'
-        }`} />
+        <div 
+          className="absolute top-0 right-0 -mt-8 -mr-8 w-40 h-40 rounded-full blur-3xl pointer-events-none opacity-25"
+          style={{ background: `radial-gradient(circle, var(--accent) 0%, transparent 70%)` }}
+        />
 
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-600 text-white shadow-md shadow-purple-950/40">
+            <div 
+              className="p-2.5 rounded-2xl text-white shadow-md"
+              style={{
+                background: `linear-gradient(135deg, var(--accent-gradient-start), var(--accent-gradient-end))`,
+                boxShadow: 'var(--accent-glow-sm)',
+              }}
+            >
               <ArrowDownCircle size={22} />
             </div>
             <div>
               <h3 className={`font-display font-bold text-base ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {t('downloadDialog.title')}
               </h3>
-              <p className={`text-xs ${isLight ? 'text-purple-700' : 'text-purple-300/70'}`}>
+              <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                 {t('downloadDialog.subtitle')}
               </p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className={`p-2 rounded-xl transition-colors ${
+            className={`p-2 rounded-xl transition-colors cursor-pointer ${
               isLight 
                 ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' 
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -152,16 +158,20 @@ export default function DownloadDialog({ isOpen, data, onClose, onConfirm }: Dow
         </div>
 
         {/* Overview Box */}
-        <div className={`p-4 rounded-2xl flex items-start gap-4 ${
-          isLight 
-            ? 'bg-purple-50/70 border border-purple-200/80 shadow-sm' 
-            : 'bg-purple-950/20 border border-purple-500/15'
-        }`}>
-          <div className={`p-3 rounded-xl border ${
-            isLight 
-              ? 'bg-white border-purple-200/90 shadow-sm' 
-              : 'bg-purple-900/30 border border-purple-500/20'
-          }`}>
+        <div 
+          className="p-4 rounded-2xl flex items-start gap-4 border"
+          style={{
+            backgroundColor: 'var(--accent-surface)',
+            borderColor: 'var(--accent-border)',
+          }}
+        >
+          <div 
+            className="p-3 rounded-xl border"
+            style={{
+              backgroundColor: 'var(--accent-soft)',
+              borderColor: 'var(--accent-border)',
+            }}
+          >
             {getFileIcon(filename || data.filename, isLight, data.mime)}
           </div>
           <div className="flex-1 min-w-0">
@@ -169,12 +179,12 @@ export default function DownloadDialog({ isOpen, data, onClose, onConfirm }: Dow
               {filename || data.filename}
             </div>
             <div className={`flex items-center gap-4 mt-2 text-xs font-mono ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-              <span className={`flex items-center gap-1 ${isLight ? 'text-purple-700 font-medium' : 'text-purple-200'}`}>
-                <Layers size={13} className={isLight ? "text-fuchsia-600" : "text-fuchsia-400"} />
+              <span className="flex items-center gap-1 font-medium" style={{ color: 'var(--accent-text)' }}>
+                <Layers size={13} style={{ color: 'var(--accent)' }} />
                 {formatBytes(data.fileSize)}
               </span>
               <span className={`flex items-center gap-1 truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                <Globe size={13} className={isLight ? "text-pink-600" : "text-pink-400"} />
+                <Globe size={13} style={{ color: 'var(--accent)' }} />
                 {domain}
               </span>
             </div>
@@ -191,11 +201,22 @@ export default function DownloadDialog({ isOpen, data, onClose, onConfirm }: Dow
               type="text" 
               value={filename} 
               onChange={(e) => setFilename(e.target.value)}
-              className={`w-full rounded-xl py-2 px-3.5 font-mono focus:outline-none focus:ring-1 ${
+              className={`w-full rounded-xl py-2 px-3.5 font-mono focus:outline-none ${
                 isLight
-                  ? 'bg-white border border-purple-200/90 text-slate-800 placeholder-slate-400 focus:border-purple-600 focus:ring-purple-500/20 shadow-sm'
-                  : 'bg-[#121222] border border-purple-500/20 text-slate-100 placeholder-slate-500 focus:border-fuchsia-500/50 focus:ring-fuchsia-500/50'
+                  ? 'bg-white text-slate-800 placeholder-slate-400 shadow-sm'
+                  : 'bg-[#121222] text-slate-100 placeholder-slate-500'
               }`}
+              style={{
+                border: '1px solid var(--accent-border)'
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = 'var(--accent)';
+                e.currentTarget.style.boxShadow = 'var(--accent-glow-sm)';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = 'var(--accent-border)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
             />
           </div>
 
@@ -204,22 +225,26 @@ export default function DownloadDialog({ isOpen, data, onClose, onConfirm }: Dow
               {t('downloadDialog.saveLocation')}
             </label>
             <div className="flex items-center gap-2">
-              <div className={`flex-1 rounded-xl py-2 px-3.5 font-mono truncate ${
-                isLight
-                  ? 'bg-slate-50 border border-purple-200/80 text-slate-800'
-                  : 'bg-[#121222] border border-purple-500/20 text-slate-300'
-              }`}>
+              <div 
+                className={`flex-1 rounded-xl py-2 px-3.5 font-mono truncate border ${
+                  isLight
+                    ? 'bg-slate-50 text-slate-800'
+                    : 'bg-[#121222] text-slate-300'
+                }`}
+                style={{ borderColor: 'var(--accent-border)' }}
+              >
                 {saveFolder || t('downloadDialog.selectFolder')}
               </div>
               <button 
                 onClick={handleSelectFolder}
-                className={`px-3.5 py-2 rounded-xl transition-colors shrink-0 flex items-center gap-1.5 ${
-                  isLight
-                    ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200/90 shadow-sm'
-                    : 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-200 border border-purple-500/20'
-                }`}
+                className="px-3.5 py-2 rounded-xl transition-colors shrink-0 flex items-center gap-1.5 border font-medium cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--accent-soft)',
+                  color: 'var(--accent-text)',
+                  borderColor: 'var(--accent-border)',
+                }}
               >
-                <Folder size={14} className={isLight ? "text-pink-600" : "text-pink-400"} />
+                <Folder size={14} style={{ color: 'var(--accent)' }} />
                 {t('downloadDialog.browse')}
               </button>
             </div>
@@ -227,12 +252,13 @@ export default function DownloadDialog({ isOpen, data, onClose, onConfirm }: Dow
         </div>
 
         {/* Actions */}
-        <div className={`flex items-center justify-between pt-2 border-t ${
-          isLight ? 'border-purple-100' : 'border-purple-500/10'
-        }`}>
+        <div 
+          className="flex items-center justify-between pt-2 border-t"
+          style={{ borderColor: 'var(--accent-border)' }}
+        >
           <button 
             onClick={onClose}
-            className={`px-4 py-2 rounded-xl text-xs font-medium transition-colors ${
+            className={`px-4 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
               isLight
                 ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
@@ -248,7 +274,7 @@ export default function DownloadDialog({ isOpen, data, onClose, onConfirm }: Dow
               disabled={isSubmitting}
               className="text-xs py-2 px-3.5"
             >
-              <Clock size={14} className={isLight ? "text-fuchsia-600" : "text-fuchsia-400"} />
+              <Clock size={14} style={{ color: 'var(--accent)' }} />
               {t('downloadDialog.downloadLater')}
             </GlassButton>
             <GlassButton 

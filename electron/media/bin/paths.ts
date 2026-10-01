@@ -45,6 +45,22 @@ export function isPackagedApp(): boolean {
   return process.env.NODE_ENV === 'production';
 }
 
+function getModuleDir(): string {
+  if (typeof __dirname !== 'undefined') {
+    return __dirname;
+  }
+  try {
+    const { fileURLToPath } = require('url');
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    try {
+      return path.dirname(new URL(import.meta.url).pathname);
+    } catch {
+      return process.cwd();
+    }
+  }
+}
+
 /**
  * Universal binary resolution algorithm with multi-tier fallback:
  * 1. Custom environment variable override (e.g. YTDLP_PATH, FFMPEG_PATH)
@@ -108,12 +124,13 @@ export function resolveBinaryPath(baseName: string): string {
     );
   }
 
-  // Relative to compiled module directory (__dirname in dist-electron/...)
+  // Relative to compiled module directory (in dist-electron/...)
+  const moduleDir = getModuleDir();
   candidatePaths.push(
-    path.join(__dirname, '..', '..', '..', 'bin', 'win-x64', binName),
-    path.join(__dirname, '..', '..', '..', 'bin', binName),
-    path.join(__dirname, '..', '..', 'bin', binName),
-    path.join(__dirname, '..', 'bin', binName)
+    path.join(moduleDir, '..', '..', '..', 'bin', 'win-x64', binName),
+    path.join(moduleDir, '..', '..', '..', 'bin', binName),
+    path.join(moduleDir, '..', '..', 'bin', binName),
+    path.join(moduleDir, '..', 'bin', binName)
   );
 
   // Iterate and return first matched physical executable

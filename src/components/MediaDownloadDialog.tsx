@@ -40,12 +40,15 @@ interface MediaDownloadDialogProps {
 
 export type DownloadUIStage = 
   | 'idle'
+  | 'ready'
   | 'extracting'
   | 'downloading_video'
   | 'downloading_audio'
   | 'downloading_stream'
   | 'merging_streams'
   | 'converting_audio'
+  | 'verifying'
+  | 'retrying'
   | 'completed'
   | 'paused'
   | 'cancelled'
@@ -820,6 +823,10 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
         return { title: 'Lossless FFmpeg Stream Multiplexing...', color: 'text-amber-400', step: 4 };
       case 'converting_audio':
         return { title: 'Transcoding High-Fidelity MP3...', color: 'text-pink-400', step: 4 };
+      case 'verifying':
+        return { title: 'Verifying Media Stream & Container...', color: 'text-purple-400', step: 4 };
+      case 'retrying':
+        return { title: 'Retrying Recovery Strategy...', color: 'text-amber-400', step: 1 };
       case 'paused':
         return { title: 'Download Paused (Streams Preserved)', color: 'text-amber-400', step: 2 };
       case 'completed':
@@ -1044,13 +1051,23 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
 
           {/* 2. Download Live Progress Dashboard */}
           {(isDownloading || isPaused || downloadStage === 'completed' || downloadStage === 'merging_streams' || downloadStage === 'downloading_video' || downloadStage === 'downloading_audio') && (
-            <div className={`p-5 rounded-2xl border space-y-4 animate-in fade-in duration-300 ${
-              downloadStage === 'completed'
-                ? isLight ? 'bg-emerald-50/90 border-emerald-300 shadow-sm' : 'bg-emerald-950/20 border-emerald-500/30'
-                : isPaused
-                ? isLight ? 'bg-amber-50/90 border-amber-300 shadow-sm' : 'bg-amber-950/20 border-amber-500/30'
-                : isLight ? 'bg-purple-50/80 border-purple-200 shadow-sm' : 'bg-purple-950/20 border-purple-500/30'
-            }`}>
+            <div 
+              className={`p-5 rounded-2xl border space-y-4 animate-in fade-in duration-300 ${
+                downloadStage === 'completed'
+                  ? isLight ? 'bg-emerald-50/90 border-emerald-300 shadow-sm' : 'bg-emerald-950/20 border-emerald-500/30'
+                  : isPaused
+                  ? isLight ? 'bg-amber-50/90 border-amber-300 shadow-sm' : 'bg-amber-950/20 border-amber-500/30'
+                  : isLight ? 'shadow-sm' : ''
+              }`}
+              style={
+                downloadStage !== 'completed' && !isPaused
+                  ? {
+                      backgroundColor: 'var(--accent-subtle)',
+                      borderColor: 'var(--accent-border-strong)',
+                    }
+                  : undefined
+              }
+            >
               
               {/* Header with Stage and Status Controls */}
               <div className="flex items-center justify-between">
@@ -1064,7 +1081,13 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
                       <Pause size={18} />
                     </div>
                   ) : (
-                    <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center">
+                    <div 
+                      className="w-8 h-8 rounded-xl flex items-center justify-center"
+                      style={{
+                        backgroundColor: 'var(--accent-soft)',
+                        color: 'var(--accent)',
+                      }}
+                    >
                       <Loader2 size={18} className="animate-spin" />
                     </div>
                   )}
@@ -1080,7 +1103,14 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
 
                 <div className="flex items-center gap-3">
                   <div className="text-right">
-                    <span className="text-base font-mono font-extrabold tracking-tight">
+                    <span 
+                      className="text-base font-mono font-extrabold tracking-tight"
+                      style={
+                        downloadStage !== 'completed' && !isPaused
+                          ? { color: 'var(--accent-text)' }
+                          : undefined
+                      }
+                    >
                       {downloadProgress}%
                     </span>
                   </div>
@@ -1090,7 +1120,11 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
                     <button
                       type="button"
                       onClick={handlePauseDownload}
-                      className="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-300 transition-colors"
+                      className="p-2 rounded-xl transition-colors hover:opacity-80"
+                      style={{
+                        backgroundColor: 'var(--accent-soft)',
+                        color: 'var(--accent-text)',
+                      }}
                       title="Pause Download"
                     >
                       <Pause size={16} />
@@ -1125,36 +1159,40 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
               <div className="space-y-1.5">
                 <div className="w-full h-2.5 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden relative shadow-inner">
                   <div 
-                    className={`h-full transition-all duration-300 rounded-full ${
-                      downloadStage === 'completed'
-                        ? 'bg-emerald-500'
+                    className="h-full transition-all duration-300 rounded-full"
+                    style={{ 
+                      width: `${Math.max(2, downloadProgress)}%`,
+                      background: downloadStage === 'completed'
+                        ? '#10B981'
                         : isPaused
-                        ? 'bg-amber-500'
-                        : 'bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500'
-                    }`}
-                    style={{ width: `${Math.max(2, downloadProgress)}%` }}
+                        ? '#F59E0B'
+                        : 'linear-gradient(90deg, var(--accent-gradient-start), var(--accent-gradient-end))'
+                    }}
                   />
                 </div>
 
                 {/* Sub-step indicator pills */}
                 <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 pt-1">
-                  <span className={downloadProgress >= 5 ? 'text-purple-500 font-bold' : ''}>1. Metadata</span>
+                  <span style={downloadProgress >= 5 ? { color: 'var(--accent)', fontWeight: 'bold' } : undefined}>1. Metadata</span>
                   <span>•</span>
-                  <span className={downloadProgress >= 30 ? 'text-purple-500 font-bold' : ''}>2. Video Stream</span>
+                  <span style={downloadProgress >= 30 ? { color: 'var(--accent)', fontWeight: 'bold' } : undefined}>2. Video Stream</span>
                   <span>•</span>
-                  <span className={downloadProgress >= 70 ? 'text-pink-500 font-bold' : ''}>3. Audio Track</span>
+                  <span style={downloadProgress >= 70 ? { color: 'var(--accent)', fontWeight: 'bold' } : undefined}>3. Audio Track</span>
                   <span>•</span>
-                  <span className={downloadProgress >= 88 ? 'text-amber-500 font-bold' : ''}>4. FFmpeg Merge</span>
+                  <span style={downloadProgress >= 88 ? { color: '#F59E0B', fontWeight: 'bold' } : undefined}>4. FFmpeg Merge</span>
                   <span>•</span>
-                  <span className={downloadProgress >= 100 ? 'text-emerald-500 font-bold' : ''}>5. Ready</span>
+                  <span style={downloadProgress >= 100 ? { color: '#10B981', fontWeight: 'bold' } : undefined}>5. Ready</span>
                 </div>
               </div>
 
               {/* Metrics Footer */}
-              <div className="flex flex-wrap items-center justify-between text-xs font-mono text-slate-500 dark:text-slate-400 pt-1 border-t border-purple-500/10">
+              <div 
+                className="flex flex-wrap items-center justify-between text-xs font-mono text-slate-500 dark:text-slate-400 pt-1 border-t"
+                style={{ borderColor: 'var(--accent-border)' }}
+              >
                 <div className="flex items-center gap-4">
                   {downloadSpeed && (
-                    <span>Speed: <strong className="text-purple-600 dark:text-purple-300 font-bold">{downloadSpeed}</strong></span>
+                    <span>Speed: <strong style={{ color: 'var(--accent-text)' }} className="font-bold">{downloadSpeed}</strong></span>
                   )}
                   {downloadEta && (
                     <span>ETA: <strong>{downloadEta}</strong></span>
@@ -1177,7 +1215,11 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
                     </button>
                     <button 
                       onClick={handleOpenFolder}
-                      className="px-2.5 py-1 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition-colors flex items-center gap-1.5 font-semibold text-xs"
+                      className="px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 font-semibold text-xs"
+                      style={{
+                        backgroundColor: 'var(--accent-soft)',
+                        color: 'var(--accent-text)',
+                      }}
                     >
                       <Folder size={13} />
                       Open Folder
@@ -1249,9 +1291,13 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   {/* Segmented Mode Switcher (Video vs Audio Only) */}
-                  <div className={`p-1 rounded-xl border flex items-center gap-1 ${
-                    isLight ? 'bg-white border-purple-200' : 'bg-black/40 border-purple-500/20'
-                  }`}>
+                  <div 
+                    className="p-1 rounded-xl border flex items-center gap-1"
+                    style={{
+                      backgroundColor: isLight ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.4)',
+                      borderColor: 'var(--accent-border)',
+                    }}
+                  >
                     <button
                       type="button"
                       onClick={() => {
@@ -1263,9 +1309,17 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
                       }}
                       className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                         activeTab === 'video'
-                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-sm'
+                          ? 'text-white shadow-sm'
                           : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
                       }`}
+                      style={
+                        activeTab === 'video'
+                          ? {
+                              background: 'linear-gradient(135deg, var(--accent-gradient-start), var(--accent-gradient-end))',
+                              color: 'var(--accent-contrast)',
+                            }
+                          : undefined
+                      }
                     >
                       <Video size={14} />
                       Video Streams
@@ -1283,9 +1337,17 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
                       }}
                       className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                         activeTab === 'audio'
-                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-sm'
+                          ? 'text-white shadow-sm'
                           : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
                       }`}
+                      style={
+                        activeTab === 'audio'
+                          ? {
+                              background: 'linear-gradient(135deg, var(--accent-gradient-start), var(--accent-gradient-end))',
+                              color: 'var(--accent-contrast)',
+                            }
+                          : undefined
+                      }
                     >
                       <Music size={14} />
                       Audio Only (MP3)
@@ -1304,11 +1366,19 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
                           onClick={() => setSelectedContainer(cnt)}
                           className={`px-2.5 py-1 rounded-lg text-xs font-mono uppercase transition-all ${
                             selectedContainer === cnt
-                              ? 'bg-purple-600 text-white font-bold shadow-sm'
+                              ? 'text-white font-bold shadow-sm'
                               : isLight
-                              ? 'bg-white border border-slate-200 text-slate-600 hover:bg-purple-50'
+                              ? 'bg-white border border-slate-200 text-slate-600 hover:opacity-90'
                               : 'bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10'
                           }`}
+                          style={
+                            selectedContainer === cnt
+                              ? {
+                                  backgroundColor: 'var(--accent)',
+                                  color: 'var(--accent-contrast)',
+                                }
+                              : undefined
+                          }
                         >
                           .{cnt}
                         </button>
@@ -1322,11 +1392,19 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
                           onClick={() => setSelectedContainer(cnt)}
                           className={`px-2.5 py-1 rounded-lg text-xs font-mono uppercase transition-all ${
                             selectedContainer === cnt
-                              ? 'bg-pink-600 text-white font-bold shadow-sm'
+                              ? 'text-white font-bold shadow-sm'
                               : isLight
-                              ? 'bg-white border border-slate-200 text-slate-600 hover:bg-pink-50'
+                              ? 'bg-white border border-slate-200 text-slate-600 hover:opacity-90'
                               : 'bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10'
                           }`}
+                          style={
+                            selectedContainer === cnt
+                              ? {
+                                  backgroundColor: 'var(--accent)',
+                                  color: 'var(--accent-contrast)',
+                                }
+                              : undefined
+                          }
                         >
                           .{cnt}
                         </button>
@@ -1353,12 +1431,21 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
                           className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all disabled:opacity-50 ${
                             isSelected
                               ? isLight
-                                ? 'bg-purple-50/90 border-purple-500 text-purple-950 ring-2 ring-purple-500/40 shadow-md'
-                                : 'bg-purple-950/40 border-purple-500 text-white ring-2 ring-purple-500/40 shadow-[0_0_20px_rgba(168,85,247,0.25)]'
+                                ? 'shadow-md'
+                                : ''
                               : isLight
-                                ? 'bg-white hover:bg-purple-50/40 border-slate-200 text-slate-700'
+                                ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
                                 : 'bg-white/[0.03] hover:bg-white/[0.06] border-white/10 text-slate-300'
                           }`}
+                          style={
+                            isSelected
+                              ? {
+                                  backgroundColor: 'var(--accent-soft)',
+                                  borderColor: 'var(--accent)',
+                                  boxShadow: isLight ? 'var(--accent-glow-sm)' : 'var(--accent-glow)',
+                                }
+                              : undefined
+                          }
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <div className={`px-2.5 py-1 rounded-lg font-mono font-bold text-xs shrink-0 flex items-center justify-center ${
@@ -1367,9 +1454,18 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
                                 : is2K
                                 ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                                 : isFHD
-                                ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                                ? 'border'
                                 : 'bg-slate-500/20 text-slate-400 border border-slate-500/30'
-                            }`}>
+                            }`}
+                            style={
+                              isFHD
+                                ? {
+                                    backgroundColor: 'var(--accent-soft)',
+                                    color: 'var(--accent-text)',
+                                    borderColor: 'var(--accent-border-strong)',
+                                  }
+                                : undefined
+                            }>
                               {p.quality.toUpperCase()}
                             </div>
 
@@ -1377,7 +1473,15 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
                               <div className="text-xs font-bold truncate flex items-center gap-1.5">
                                 {p.label}
                                 {p.isDash && (
-                                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20" title="Separate high-res video and audio tracks losslessly merged with FFmpeg">
+                                  <span 
+                                    className="text-[9px] font-mono px-1.5 py-0.2 rounded border" 
+                                    style={{
+                                      backgroundColor: 'var(--accent-subtle)',
+                                      color: 'var(--accent-text)',
+                                      borderColor: 'var(--accent-border)',
+                                    }}
+                                    title="Separate high-res video and audio tracks losslessly merged with FFmpeg"
+                                  >
                                     DASH MUX
                                   </span>
                                 )}
@@ -1389,7 +1493,13 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
                           </div>
 
                           {isSelected && (
-                            <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white shrink-0 shadow">
+                            <div 
+                              className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 shadow"
+                              style={{
+                                background: 'linear-gradient(135deg, var(--accent-gradient-start), var(--accent-gradient-end))',
+                                color: 'var(--accent-contrast)',
+                              }}
+                            >
                               <Check size={14} strokeWidth={3} />
                             </div>
                           )}

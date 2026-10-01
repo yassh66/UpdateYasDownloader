@@ -10,7 +10,10 @@ import {
 const BROWSER_DISPLAY_NAMES: Record<SupportedBrowser, string> = {
   chrome: 'Google Chrome',
   edge: 'Microsoft Edge',
+  firefox: 'Mozilla Firefox',
   brave: 'Brave Browser',
+  opera: 'Opera',
+  vivaldi: 'Vivaldi',
 };
 
 export class BrowserCookieReader {

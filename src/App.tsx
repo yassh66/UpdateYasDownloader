@@ -4,6 +4,7 @@ import type { InterceptedDownloadData, StartDownloadOptions } from './types';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { MediaDownloadProvider } from './context/MediaDownloadContext';
+import { AccentProvider } from './context/AccentContext';
 
 // Components
 import Sidebar from './components/Sidebar';
@@ -16,14 +17,252 @@ import StandaloneDownloadDialog from './components/StandaloneDownloadDialog';
 import MediaDownloadDialog from './components/MediaDownloadDialog';
 import MiniMediaIndicator from './components/MiniMediaIndicator';
 
+// Synchronously initialize mock API bridges for browser/preview mode before any React context or component mounts
+function initWebPreviewMocks() {
+  if (typeof window === 'undefined') return;
+
+  if (!window.electronAPI) {
+    const mockDownloads = new Map<string, any>();
+    let subscribers: any[] = [];
+    let subscribersRemoved: any[] = [];
+    let subscribersCleared: any[] = [];
+    let interceptSubscribers: any[] = [];
+
+    let mockSettings = {
+      downloadFolder: '/Users/mock/Downloads',
+      maxConcurrent: 3,
+      maxConnections: 8,
+      launchOnStartup: false,
+      speedLimit: 0,
+      autoIntercept: true,
+      theme: (localStorage.getItem('yas_downloader_theme') as any) || 'dark',
+      accentColor: localStorage.getItem('yas_downloader_accent') || '#6E4BFF'
+    };
+
+    window.electronAPI = {
+      isMock: true,
+      ping: async () => 'pong from MOCKED Electron API (Web Preview Environment)',
+      minimizeWindow: async () => { console.log('Mock: minimize window'); },
+      maximizeWindow: async () => { console.log('Mock: maximize window'); },
+      closeWindow: async () => { console.log('Mock: close window'); },
+      startDownload: async (input: string | StartDownloadOptions) => {
+        const opts: StartDownloadOptions = typeof input === 'string' ? { url: input } : input;
+        const id = Math.random().toString(36).substring(7);
+        const isStartNow = opts.startNow !== false;
+        const d = {
+          id, 
+          url: opts.url, 
+          filename: opts.filename || 'mock_file.zip', 
+          status: isStartNow ? 'downloading' : 'waiting',
+          totalBytes: opts.totalBytes || 100000000, 
+          downloadedBytes: 0, 
+          progress: 0, 
+          speed: isStartNow ? 2500000 : 0, 
+          timeRemaining: isStartNow ? 40 : 0,
+          savePath: opts.savePath || `/Users/mock/Downloads/${opts.filename || 'mock_file.zip'}`,
+          category: 'other'
+        };
+        mockDownloads.set(id, d);
+        subscribers.forEach(cb => cb(d));
+
+        if (isStartNow) {
+          let progress = 0;
+          const interval = setInterval(() => {
+            progress += 5;
+            if (progress > 100) {
+              clearInterval(interval);
+              d.status = 'completed';
+              d.progress = 100;
+              d.downloadedBytes = d.totalBytes;
+              d.speed = 0;
+              d.timeRemaining = 0;
+            } else {
+              d.progress = progress;
+              d.downloadedBytes = (d.totalBytes * progress) / 100;
+              d.speed = 2500000 + Math.random() * 500000;
+              d.timeRemaining = Math.round((d.totalBytes - d.downloadedBytes) / Math.max(1, d.speed));
+            }
+            subscribers.forEach(cb => cb({ ...d }));
+          }, 1000);
+        }
+
+        return id;
+      },
+      pauseDownload: async (id: string) => {
+        const d = mockDownloads.get(id);
+        if (d) {
+          d.status = 'paused';
+          d.speed = 0;
+          subscribers.forEach(cb => cb({ ...d }));
+        }
+      },
+      resumeDownload: async (id: string) => {
+        const d = mockDownloads.get(id);
+        if (d) {
+          d.status = 'downloading';
+          d.speed = 2500000;
+          subscribers.forEach(cb => cb({ ...d }));
+        }
+      },
+      cancelDownload: async (id: string) => {
+        const d = mockDownloads.get(id);
+        if (d) {
+          d.status = 'cancelled';
+          d.speed = 0;
+          subscribers.forEach(cb => cb({ ...d }));
+        }
+      },
+      removeDownload: async (id: string) => {
+        mockDownloads.delete(id);
+        subscribersRemoved.forEach(cb => cb(id));
+      },
+      clearDownloads: async () => {
+        mockDownloads.clear();
+        subscribersCleared.forEach(cb => cb());
+      },
+      retryDownload: async (id: string) => {
+        const d = mockDownloads.get(id);
+        if (d) {
+          d.status = 'downloading';
+          d.progress = 0;
+          d.downloadedBytes = 0;
+          subscribers.forEach(cb => cb({ ...d }));
+        }
+      },
+      openFile: async (id: string) => console.log('Mock: openFile', id),
+      openFolder: async (id: string) => console.log('Mock: openFolder', id),
+      getDownloads: async () => Array.from(mockDownloads.values()),
+      getSettings: async () => ({ ...mockSettings }),
+      updateSettings: async (newSettings: any) => {
+        mockSettings = { ...mockSettings, ...newSettings };
+        if (newSettings.accentColor) {
+          try {
+            localStorage.setItem('yas_downloader_accent', newSettings.accentColor);
+          } catch (e) {}
+        }
+        if (newSettings.theme) {
+          try {
+            localStorage.setItem('yas_downloader_theme', newSettings.theme);
+          } catch (e) {}
+        }
+      },
+      selectFolder: async () => '/Users/mock/Downloads',
+      installBrowserIntegration: async () => true,
+      scheduleDownload: async (url: string, time: number) => {
+        const id = Math.random().toString(36).substring(7);
+        const d = {
+          id,
+          url,
+          filename: url.split('/').pop() || 'scheduled_file',
+          status: 'scheduled',
+          totalBytes: 50000000,
+          downloadedBytes: 0,
+          progress: 0,
+          speed: 0,
+          timeRemaining: 0,
+          scheduledTime: time,
+          savePath: `/Users/mock/Downloads/scheduled_file`
+        };
+        mockDownloads.set(id, d);
+        subscribers.forEach(cb => cb(d));
+        return id;
+      },
+      openDownloadDialog: async (request: any) => {
+        const data: InterceptedDownloadData = {
+          url: request.url,
+          finalUrl: request.url,
+          filename: request.url.split('/').pop() || 'downloaded_file',
+          fileSize: 0,
+          defaultFolder: '/Users/mock/Downloads'
+        };
+        interceptSubscribers.forEach(cb => cb(data));
+      },
+      onDownloadUpdate: (callback: any) => {
+        subscribers.push(callback);
+        return () => {
+          subscribers = subscribers.filter(cb => cb !== callback);
+        };
+      },
+      onDownloadRemoved: (callback: any) => {
+        subscribersRemoved.push(callback);
+        return () => {
+          subscribersRemoved = subscribersRemoved.filter(cb => cb !== callback);
+        };
+      },
+      onDownloadsCleared: (callback: any) => {
+        subscribersCleared.push(callback);
+        return () => {
+          subscribersCleared = subscribersCleared.filter(cb => cb !== callback);
+        };
+      },
+      onInterceptDownload: (callback: any) => {
+        interceptSubscribers.push(callback);
+        return () => {
+          interceptSubscribers = interceptSubscribers.filter(cb => cb !== callback);
+        };
+      }
+    } as any;
+  }
+
+  if (!window.mediaEngine) {
+    const mockMediaJobs = new Map<string, any>();
+    let mediaJobSubscribers: any[] = [];
+    let mediaClearedSubscribers: any[] = [];
+
+    window.mediaEngine = {
+      detectUrl: async (u: string) => ({
+        isMediaUrl: u.includes('youtube') || u.includes('youtu.be') || u.includes('instagram') || u.includes('tiktok'),
+        platform: u.includes('youtube') ? 'youtube' : 'direct_file',
+        canonicalUrl: u,
+        mediaTypeHint: 'video'
+      }),
+      extractInfo: async (u: string) => ({
+        url: u,
+        title: 'Sample Extracted Media',
+        duration: 180,
+        formats: []
+      }),
+      getFormats: async () => ({ formats: [] }),
+      getActiveDownloads: async () => Array.from(mockMediaJobs.values()),
+      getDownload: async (jobId: string) => mockMediaJobs.get(jobId) || null,
+      removeJob: async (jobId: string) => {
+        mockMediaJobs.delete(jobId);
+        return true;
+      },
+      clearHistory: async () => {
+        mockMediaJobs.clear();
+        mediaClearedSubscribers.forEach(cb => cb());
+        return true;
+      },
+      onJobUpdate: (cb: any) => {
+        mediaJobSubscribers.push(cb);
+        return () => {
+          mediaJobSubscribers = mediaJobSubscribers.filter(f => f !== cb);
+        };
+      },
+      onHistoryCleared: (cb: any) => {
+        mediaClearedSubscribers.push(cb);
+        return () => {
+          mediaClearedSubscribers = mediaClearedSubscribers.filter(f => f !== cb);
+        };
+      }
+    } as any;
+  }
+}
+
+// Synchronously execute setup so window.electronAPI and window.mediaEngine exist BEFORE React providers mount
+initWebPreviewMocks();
+
 export default function App() {
   return (
     <ThemeProvider>
-      <LanguageProvider>
-        <MediaDownloadProvider>
-          <AppContent />
-        </MediaDownloadProvider>
-      </LanguageProvider>
+      <AccentProvider>
+        <LanguageProvider>
+          <MediaDownloadProvider>
+            <AppContent />
+          </MediaDownloadProvider>
+        </LanguageProvider>
+      </AccentProvider>
     </ThemeProvider>
   );
 }
@@ -43,8 +282,9 @@ function AppContent() {
 }
 
 function MainApp() {
-  const [ipcStatus, setIpcStatus] = useState<string>('Ready');
-  const [isWebPreview, setIsWebPreview] = useState<boolean>(false);
+  const isMock = !!(window.electronAPI as any)?.isMock;
+  const [ipcStatus, setIpcStatus] = useState<string>(isMock ? 'Web Preview Ready' : 'Ready');
+  const [isWebPreview, setIsWebPreview] = useState<boolean>(isMock);
   const [currentTab, setCurrentTab] = useState<string>('Dashboard');
   const [interceptedData, setInterceptedData] = useState<InterceptedDownloadData | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
@@ -53,284 +293,66 @@ function MainApp() {
   const isLight = theme === 'light';
 
   useEffect(() => {
-    // Determine if we are running in the AI Studio web preview or native Electron
-    if (!window.electronAPI) {
-      setIsWebPreview(true);
-      
-      const mockDownloads = new Map<string, any>();
-      let subscribers: any[] = [];
-      let subscribersRemoved: any[] = [];
-      let subscribersCleared: any[] = [];
-      let interceptSubscribers: any[] = [];
-      
-      let mockSettings = {
-        downloadFolder: '/Users/mock/Downloads',
-        maxConcurrent: 3,
-        maxConnections: 8,
-        launchOnStartup: false,
-        speedLimit: 0,
-        autoIntercept: true,
-        theme: 'dark'
-      };
-      
-      // Mock the electron API for the web preview
-      window.electronAPI = {
-        ping: async () => 'pong from MOCKED Electron API (Web Preview Environment)',
-        minimizeWindow: async () => { console.log('Mock: minimize window'); },
-        maximizeWindow: async () => { console.log('Mock: maximize window'); },
-        closeWindow: async () => { console.log('Mock: close window'); },
-        startDownload: async (input: string | StartDownloadOptions) => {
-          const opts: StartDownloadOptions = typeof input === 'string' ? { url: input } : input;
-          const id = Math.random().toString(36).substring(7);
-          const isStartNow = opts.startNow !== false;
-          const d = {
-            id, 
-            url: opts.url, 
-            filename: opts.filename || 'mock_file.zip', 
-            status: isStartNow ? 'downloading' : 'waiting',
-            totalBytes: opts.totalBytes || 100000000, 
-            downloadedBytes: 0, 
-            progress: 0, 
-            speed: isStartNow ? 2500000 : 0, 
-            timeRemaining: isStartNow ? 40 : 0,
-            savePath: opts.savePath || `/Users/mock/Downloads/${opts.filename || 'mock_file.zip'}`,
-            category: 'other'
-          };
-          mockDownloads.set(id, d);
-          subscribers.forEach(cb => cb(d));
-
-          if (isStartNow) {
-            let progress = 0;
-            const interval = setInterval(() => {
-              progress += 5;
-              if (progress > 100) {
-                clearInterval(interval);
-                d.status = 'completed';
-                d.progress = 100;
-                d.downloadedBytes = d.totalBytes;
-                d.speed = 0;
-                d.timeRemaining = 0;
-              } else {
-                d.progress = progress;
-                d.downloadedBytes = (d.totalBytes * progress) / 100;
-                d.speed = 2500000 + Math.random() * 500000;
-                d.timeRemaining = Math.round((d.totalBytes - d.downloadedBytes) / d.speed);
-              }
-              subscribers.forEach(cb => cb({ ...d }));
-            }, 1000);
-          }
-
-          return id;
-        },
-        pauseDownload: async (id: string) => {
-          const d = mockDownloads.get(id);
-          if (d) {
-            d.status = 'paused';
-            d.speed = 0;
-            subscribers.forEach(cb => cb({ ...d }));
-          }
-        },
-        resumeDownload: async (id: string) => {
-          const d = mockDownloads.get(id);
-          if (d) {
-            d.status = 'downloading';
-            d.speed = 2500000;
-            subscribers.forEach(cb => cb({ ...d }));
-          }
-        },
-        cancelDownload: async (id: string) => {
-          const d = mockDownloads.get(id);
-          if (d) {
-            d.status = 'cancelled';
-            d.speed = 0;
-            subscribers.forEach(cb => cb({ ...d }));
-          }
-        },
-        removeDownload: async (id: string) => {
-          mockDownloads.delete(id);
-          subscribersRemoved.forEach(cb => cb(id));
-        },
-        clearDownloads: async () => {
-          mockDownloads.clear();
-          subscribersCleared.forEach(cb => cb());
-        },
-        retryDownload: async (id: string) => {
-          const d = mockDownloads.get(id);
-          if (d) {
-            d.status = 'downloading';
-            d.progress = 0;
-            d.downloadedBytes = 0;
-            subscribers.forEach(cb => cb({ ...d }));
-          }
-        },
-        openFile: async (id: string) => console.log('Mock: openFile', id),
-        openFolder: async (id: string) => console.log('Mock: openFolder', id),
-        getDownloads: async () => Array.from(mockDownloads.values()),
-        getSettings: async () => ({ ...mockSettings }),
-        updateSettings: async (newSettings: any) => {
-          mockSettings = { ...mockSettings, ...newSettings };
-        },
-        selectFolder: async () => '/Users/mock/Downloads',
-        installBrowserIntegration: async () => true,
-        scheduleDownload: async (url: string, time: number) => {
-          const id = Math.random().toString(36).substring(7);
-          const d = {
-            id,
-            url,
-            filename: url.split('/').pop() || 'scheduled_file',
-            status: 'scheduled',
-            totalBytes: 50000000,
-            downloadedBytes: 0,
-            progress: 0,
-            speed: 0,
-            timeRemaining: 0,
-            scheduledTime: time,
-            savePath: `/Users/mock/Downloads/scheduled_file`
-          };
-          mockDownloads.set(id, d);
-          subscribers.forEach(cb => cb(d));
-          return id;
-        },
-        openDownloadDialog: async (request: any) => {
-          setInterceptedData({
-            url: request.url,
-            finalUrl: request.url,
-            filename: request.url.split('/').pop() || 'downloaded_file',
-            fileSize: 0,
-            defaultFolder: '/Users/mock/Downloads'
+    if (isMock) {
+      // Add dummy initial download to web preview mock if empty
+      window.electronAPI?.getDownloads?.().then((items: any[]) => {
+        if (!items || items.length === 0) {
+          window.electronAPI?.startDownload({
+            url: 'https://releases.ubuntu.com/24.04/ubuntu-24.04-desktop-amd64.iso',
+            filename: 'ubuntu-24.04-desktop-amd64.iso',
+            totalBytes: 6100000000
           });
-          setIsDialogOpen(true);
-        },
-        onDownloadUpdate: (callback: any) => {
-          subscribers.push(callback);
-          return () => {
-            subscribers = subscribers.filter(cb => cb !== callback);
-          };
-        },
-        onDownloadRemoved: (callback: any) => {
-          subscribersRemoved.push(callback);
-          return () => {
-            subscribersRemoved = subscribersRemoved.filter(cb => cb !== callback);
-          };
-        },
-        onDownloadsCleared: (callback: any) => {
-          subscribersCleared.push(callback);
-          return () => {
-            subscribersCleared = subscribersCleared.filter(cb => cb !== callback);
-          };
-        },
-        onInterceptDownload: (callback: any) => {
-          interceptSubscribers.push(callback);
-          return () => {
-            interceptSubscribers = interceptSubscribers.filter(cb => cb !== callback);
-          };
         }
-      } as any;
-
-      if (!window.mediaEngine) {
-        const mockMediaJobs = new Map<string, any>();
-        let mediaJobSubscribers: any[] = [];
-        let mediaClearedSubscribers: any[] = [];
-
-        window.mediaEngine = {
-          detectUrl: async (u: string) => ({
-            isMediaUrl: u.includes('youtube') || u.includes('youtu.be') || u.includes('instagram') || u.includes('tiktok'),
-            platform: u.includes('youtube') ? 'youtube' : 'direct_file',
-            canonicalUrl: u,
-            mediaTypeHint: 'video'
-          }),
-          extractInfo: async (u: string) => ({
-            url: u,
-            title: 'Sample Extracted Media',
-            duration: 180,
-            formats: []
-          }),
-          getFormats: async () => ({ formats: [] }),
-          getActiveDownloads: async () => Array.from(mockMediaJobs.values()),
-          getDownload: async (jobId: string) => mockMediaJobs.get(jobId) || null,
-          removeJob: async (jobId: string) => {
-            mockMediaJobs.delete(jobId);
-            return true;
-          },
-          clearHistory: async () => {
-            mockMediaJobs.clear();
-            mediaClearedSubscribers.forEach(cb => cb());
-            return true;
-          },
-          onJobUpdate: (cb: any) => {
-            mediaJobSubscribers.push(cb);
-            return () => {
-              mediaJobSubscribers = mediaJobSubscribers.filter(f => f !== cb);
-            };
-          },
-          onHistoryCleared: (cb: any) => {
-            mediaClearedSubscribers.push(cb);
-            return () => {
-              mediaClearedSubscribers = mediaClearedSubscribers.filter(f => f !== cb);
-            };
-          }
-        } as any;
-      }
-
-      // Add dummy completed download to web preview mock
-      setTimeout(() => {
-        window.electronAPI?.startDownload({
-          url: 'https://releases.ubuntu.com/24.04/ubuntu-24.04-desktop-amd64.iso',
-          filename: 'ubuntu-24.04-desktop-amd64.iso',
-          totalBytes: 6100000000
-        });
-      }, 500);
-
+      });
     } else {
-      setIsWebPreview(false);
-      window.electronAPI.ping().then(setIpcStatus).catch(err => setIpcStatus('IPC Error: ' + err));
-
-      const unsubscribers: (() => void)[] = [];
-
-      if (window.electronAPI.onInterceptDownload) {
-        const unsubscribe = window.electronAPI.onInterceptDownload((data: InterceptedDownloadData) => {
-          setInterceptedData(data);
-          setIsDialogOpen(true);
-        });
-        if (unsubscribe) unsubscribers.push(unsubscribe);
-      }
-
-      // Media Engine Event Subscriptions in App root
-      const mediaEngine = (window as any).electron?.mediaEngine || (window as any).mediaEngine;
-      if (mediaEngine) {
-        if (mediaEngine.onJobUpdate) {
-          const unsub = mediaEngine.onJobUpdate((job: any) => {
-            console.log('[App] Media Job Update:', job?.id, job?.status, job?.percent);
-          });
-          if (unsub) unsubscribers.push(unsub);
-        }
-        if (mediaEngine.onProgress) {
-          const unsub = mediaEngine.onProgress((data: any) => {
-            console.log('[App] Media Progress:', data?.jobId, data?.percent);
-          });
-          if (unsub) unsubscribers.push(unsub);
-        }
-        if (mediaEngine.onComplete) {
-          const unsub = mediaEngine.onComplete((data: any) => {
-            console.log('[App] Media Complete:', data?.jobId, data?.outputPath);
-          });
-          if (unsub) unsubscribers.push(unsub);
-        }
-        if (mediaEngine.onError) {
-          const unsub = mediaEngine.onError((data: any) => {
-            console.error('[App] Media Error:', data?.jobId, data?.error);
-          });
-          if (unsub) unsubscribers.push(unsub);
-        }
-      }
-
-      return () => {
-        unsubscribers.forEach(fn => {
-          try { fn(); } catch (e) {}
-        });
-      };
+      window.electronAPI?.ping?.().then(setIpcStatus).catch(err => setIpcStatus('IPC Error: ' + err));
     }
-  }, []);
+
+    const unsubscribers: (() => void)[] = [];
+
+    if (window.electronAPI?.onInterceptDownload) {
+      const unsubscribe = window.electronAPI.onInterceptDownload((data: InterceptedDownloadData) => {
+        setInterceptedData(data);
+        setIsDialogOpen(true);
+      });
+      if (unsubscribe) unsubscribers.push(unsubscribe);
+    }
+
+    // Media Engine Event Subscriptions in App root
+    const mediaEngine = (window as any).electron?.mediaEngine || (window as any).mediaEngine;
+    if (mediaEngine) {
+      if (mediaEngine.onJobUpdate) {
+        const unsub = mediaEngine.onJobUpdate((job: any) => {
+          console.log('[App] Media Job Update:', job?.id, job?.status, job?.percent);
+        });
+        if (unsub) unsubscribers.push(unsub);
+      }
+      if (mediaEngine.onProgress) {
+        const unsub = mediaEngine.onProgress((data: any) => {
+          console.log('[App] Media Progress:', data?.jobId, data?.percent);
+        });
+        if (unsub) unsubscribers.push(unsub);
+      }
+      if (mediaEngine.onComplete) {
+        const unsub = mediaEngine.onComplete((data: any) => {
+          console.log('[App] Media Complete:', data?.jobId, data?.outputPath);
+        });
+        if (unsub) unsubscribers.push(unsub);
+      }
+      if (mediaEngine.onError) {
+        const unsub = mediaEngine.onError((data: any) => {
+          console.error('[App] Media Error:', data?.jobId, data?.error);
+        });
+        if (unsub) unsubscribers.push(unsub);
+      }
+    }
+
+    return () => {
+      unsubscribers.forEach(fn => {
+        try { fn(); } catch (e) {}
+      });
+    };
+  }, [isMock]);
 
   // Global Drag & Drop Link Handler
   useEffect(() => {

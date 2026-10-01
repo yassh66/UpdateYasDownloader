@@ -1,6 +1,7 @@
 import { AbstractBaseMediaExtractor } from '../baseExtractor';
 import { isInstagramUrl } from '../../urlDetector';
 import { ExtractionOptions, MediaInfo } from '../../types';
+import { RecoveryStrategy } from '../../strategy/extractionStrategyManager';
 
 /**
  * Sanitizes Instagram URLs by removing tracking and session parameters
@@ -41,12 +42,12 @@ export class InstagramPlatformExtractor extends AbstractBaseMediaExtractor {
   /**
    * Builds custom arguments tailored for high Instagram reliability.
    */
-  public override buildYtdlpArgs(url: string, options?: ExtractionOptions): string[] {
+  public override buildYtdlpArgs(url: string, options?: ExtractionOptions, strategy?: RecoveryStrategy): string[] {
     const cleanedUrl = cleanInstagramUrl(url);
-    const args = super.buildYtdlpArgs(cleanedUrl, options);
+    const args = super.buildYtdlpArgs(cleanedUrl, options, strategy);
     
     // Ensure standard desktop Chrome User-Agent if none provided to bypass aggressive mobile scrapers detection
-    if (!options?.customUserAgent && !args.includes('--user-agent')) {
+    if (!strategy?.userAgent && !options?.customUserAgent && !args.includes('--user-agent')) {
       args.unshift('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
     }
     

@@ -10,6 +10,8 @@ import {
 } from '../types';
 import { binManager } from '../bin/binManager';
 import { sessionManager } from '../session/sessionManager';
+import { extractionStrategyManager, RecoveryStrategy } from '../strategy/extractionStrategyManager';
+import { MediaDiagnosticsLogger } from '../diagnostics/mediaDiagnosticsLogger';
 
 /**
  * Sanitizes titles for NTFS / FAT32 Windows filesystem restrictions.
@@ -74,10 +76,9 @@ export abstract class AbstractBaseMediaExtractor implements BaseMediaExtractor {
 
   /**
    * Prepares execution arguments for yt-dlp child process.
-   * Optimized for fast metadata and stream analysis by stripping unnecessary assets
-   * (subtitles, thumbnails, comments) while preserving all format, bitrate, and size data.
+   * Supports specific recovery strategies with player client rotation, cookies, and custom headers.
    */
-  public buildYtdlpArgs(url: string, options?: ExtractionOptions): string[] {
+  public buildYtdlpArgs(url: string, options?: ExtractionOptions, strategy?: RecoveryStrategy): string[] {
     const socketTimeout = options?.socketTimeout || this.getSocketTimeout(url);
 
     const args = [
@@ -91,7 +92,9 @@ export abstract class AbstractBaseMediaExtractor implements BaseMediaExtractor {
       '--no-write-thumbnail',
     ];
 
-    if (this.platform === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be')) {
+    const isYouTube = this.platform === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be');
+
+    if (isYouTube) {
       args.push('--remote-components', 'ejs:github');
       const jsRuntime = binManager.getJsRuntime();
       if (jsRuntime.path) {
@@ -99,10 +102,32 @@ export abstract class AbstractBaseMediaExtractor implements BaseMediaExtractor {
       } else {
         args.push('--js-runtimes', jsRuntime.runtime);
       }
-      args.push('--extractor-args', 'youtube:player_client=web,web_embedded;skip=translated_subs');
+      const playerClient = strategy?.playerClient || 'web,web_embedded;skip=translated_subs';
+      args.push('--extractor-args', `youtube:player_client=${playerClient}`);
     }
 
-    if (options?.cookiesPath) {
+    // Custom headers
+    if (strategy?.customHeaders) {
+      for (const [headerKey, headerVal] of Object.entries(strategy.customHeaders)) {
+        args.push('--add-header', `${headerKey}:${headerVal}`);
+      }
+    }
+
+    // User-Agent
+    const userAgent = strategy?.userAgent || options?.customUserAgent;
+    if (userAgent) {
+      args.push('--user-agent', userAgent);
+    }
+
+    // Cookies resolution according to strategy priority
+    if (strategy?.cookiesPath) {
+      const resolvedCookies = path.isAbsolute(strategy.cookiesPath)
+        ? strategy.cookiesPath
+        : path.resolve(strategy.cookiesPath);
+      args.push('--cookies', resolvedCookies);
+    } else if (strategy?.browserCookie) {
+      args.push('--cookies-from-browser', strategy.browserCookie);
+    } else if (options?.cookiesPath) {
       const resolvedCookies = path.isAbsolute(options.cookiesPath)
         ? options.cookiesPath
         : path.resolve(options.cookiesPath);
@@ -119,10 +144,6 @@ export abstract class AbstractBaseMediaExtractor implements BaseMediaExtractor {
 
     if (options?.proxyUrl) {
       args.push('--proxy', options.proxyUrl);
-    }
-
-    if (options?.customUserAgent) {
-      args.push('--user-agent', options.customUserAgent);
     }
 
     if (options?.maxPlaylistItems && options.maxPlaylistItems > 0) {
@@ -279,87 +300,105 @@ export abstract class AbstractBaseMediaExtractor implements BaseMediaExtractor {
   }
 
   /**
-   * Executes yt-dlp to extract full metadata.
+   * Executes yt-dlp to extract full metadata with automatic multi-tier recovery ladder.
+   * If an anti-bot restriction or client blockage is encountered, it seamlessly
+   * tests alternate strategies (client rotation, browser cookies, custom cookies)
+   * before reporting a user-facing failure.
    */
   async extractInfo(url: string, options?: ExtractionOptions): Promise<MediaInfo> {
     if (!this.canHandle(url)) {
       throw new Error(`${this.name} cannot handle URL: ${url}`);
     }
 
-    const args = this.buildYtdlpArgs(url, options);
-
-    // Development debug logging for arguments inspection
-    if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
-      console.log(`[BaseExtractor] Executing yt-dlp for platform: ${this.platform}`);
-      console.log(`[BaseExtractor] Arguments:`, args);
-    }
+    const strategies = extractionStrategyManager.getStrategyLadder(this.platform, url, options);
+    MediaDiagnosticsLogger.logExtractionStart(url, this.platform);
 
     const socketTimeout = options?.socketTimeout || this.getSocketTimeout(url);
-    const childTimeoutMs = Math.max(50000, (socketTimeout + 20) * 1000);
+    const childTimeoutMs = Math.max(45000, (socketTimeout + 20) * 1000);
 
-    const t0 = Date.now();
-    console.log(`[MediaAnalysis] START extraction for: ${url} (Platform: ${this.platform})`);
+    let lastError: any = null;
 
-    try {
-      console.log(`[MediaAnalysis] yt-dlp spawn with socketTimeout=${socketTimeout}s`);
-      const result = await binManager.executeYtdlp(args, {
-        timeoutMs: childTimeoutMs,
-      });
-      const ytDlpDuration = Date.now() - t0;
-      console.log(`[MediaAnalysis] yt-dlp completed in: ${ytDlpDuration} ms (exitCode: ${result.exitCode})`);
+    for (let i = 0; i < strategies.length; i++) {
+      const strat = strategies[i];
+      const isLast = i === strategies.length - 1;
+      const t0 = Date.now();
 
-      if (!result.stdout || !result.stdout.trim()) {
-        throw new Error('yt-dlp returned an empty response for this URL.');
+      MediaDiagnosticsLogger.logStrategyAttempt(strat.tier, strat.name, strat.description);
+
+      // Support development failure-injection testing
+      const injected = extractionStrategyManager.checkFailureInjection(strat, i);
+      if (injected && injected.shouldFail) {
+        const simErr: any = new Error(injected.simulatedError || 'Simulated anti-bot challenge failure');
+        simErr.stderr = 'Sign in to confirm you are not a bot.';
+        lastError = simErr;
+        MediaDiagnosticsLogger.logStrategyFailure(strat.tier, strat.name, simErr.message, !isLast);
+        continue;
       }
 
-      let parsedJson: Record<string, any>;
-      const tJson = Date.now();
+      const args = this.buildYtdlpArgs(url, options, strat);
+
       try {
-        parsedJson = JSON.parse(result.stdout.trim());
-      } catch (jsonErr: any) {
-        throw new Error(`Failed to parse yt-dlp metadata JSON: ${jsonErr.message}`);
-      }
-      console.log(`[MediaAnalysis] JSON parsed in: ${Date.now() - tJson} ms`);
+        const result = await binManager.executeYtdlp(args, {
+          timeoutMs: childTimeoutMs,
+        });
 
-      const tFormat = Date.now();
-      const mediaInfo = this.parseYtdlpDump(parsedJson, url);
-      console.log(`[MediaAnalysis] formats ready in: ${Date.now() - tFormat} ms (Found ${mediaInfo.availableFormats?.length || 0} formats)`);
-      console.log(`[MediaAnalysis] TOTAL analysis completed in: ${Date.now() - t0} ms`);
-
-      return mediaInfo;
-    } catch (error: any) {
-      let message = error.message || `Unknown error occurred during extraction with ${this.name}.`;
-      const combinedErr = (message + ' ' + (error.stderr || '')).toLowerCase();
-
-      if (
-        combinedErr.includes('timed out') ||
-        combinedErr.includes('curl: (28)') ||
-        combinedErr.includes('connection timed out') ||
-        combinedErr.includes('operation timed out')
-      ) {
-        if (this.platform === 'instagram' || url.includes('instagram.com')) {
-          message = 'Instagram extraction timed out. Please check your connection, VPN, or login cookies.';
-        } else if (this.platform === 'youtube' || url.includes('youtube.com')) {
-          message = 'YouTube extraction timed out. Please check your connection or try again.';
-        } else {
-          message = `${this.name} extraction timed out. Please check your connection, VPN, or proxy.`;
+        if (!result.stdout || !result.stdout.trim()) {
+          throw new Error('yt-dlp returned an empty response.');
         }
-      } else if (
-        combinedErr.includes('login required') ||
-        combinedErr.includes('checkpoint_required') ||
-        combinedErr.includes('login to view') ||
-        combinedErr.includes('login with your instagram account')
-      ) {
-        if (this.platform === 'instagram' || url.includes('instagram.com')) {
-          message = 'Instagram requires login to view this content. Please configure cookies.txt in Settings.';
+
+        const parsedJson = JSON.parse(result.stdout.trim());
+        const durationMs = Date.now() - t0;
+        MediaDiagnosticsLogger.logStrategySuccess(strat.tier, strat.name, durationMs);
+
+        const mediaInfo = this.parseYtdlpDump(parsedJson, url);
+        return mediaInfo;
+      } catch (error: any) {
+        lastError = error;
+        const errMessage = error.message || '';
+        const stderr = error.stderr || '';
+        const classification = extractionStrategyManager.classifyFailure(errMessage, stderr);
+
+        MediaDiagnosticsLogger.logStrategyFailure(strat.tier, strat.name, errMessage, !isLast && classification.isRetryable);
+
+        // If the error was a user-cancellation or permanent non-recoverable (like DRM / private), stop immediately
+        if (
+          errMessage.includes('cancelled') ||
+          classification.outcome === 'PERMANENT_FAILURE' ||
+          (classification.outcome === 'AUTH_REQUIRED' && !strat.cookiesPath && !strat.browserCookie && isLast)
+        ) {
+          if (!classification.isRetryable) {
+            break;
+          }
+        }
+
+        // Apply backoff delay for network timeouts
+        if (classification.category === 'TIMEOUT' || classification.category === 'NETWORK_ERROR') {
+          await new Promise((r) => setTimeout(r, 600));
+        }
+
+        // Continue to next tier if recoverable and strategies remain
+        if (!isLast && classification.isRetryable) {
+          continue;
         }
       }
-
-      const enrichedError: any = new Error(message);
-      enrichedError.platform = this.platform;
-      enrichedError.originalUrl = url;
-      enrichedError.rawError = error;
-      throw enrichedError;
     }
+
+    // All recovery tiers exhausted
+    const finalClassification = extractionStrategyManager.classifyFailure(lastError?.message || '', lastError?.stderr);
+    let message = finalClassification.userMessage;
+
+    if (finalClassification.category === 'UNKNOWN_ERROR') {
+      message = lastError?.message || `Unable to extract media from this link with ${this.name}.`;
+    }
+
+    const enrichedError: any = new Error(message);
+    enrichedError.platform = this.platform;
+    enrichedError.classification = finalClassification;
+    enrichedError.originalUrl = url;
+    enrichedError.rawError = lastError;
+    throw enrichedError;
+    enrichedError.originalUrl = url;
+    enrichedError.rawError = lastError;
+    throw enrichedError;
   }
 }

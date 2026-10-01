@@ -4,6 +4,7 @@ import GlassButton from './GlassButton';
 import type { DownloadItem, MediaDownloadJobItem } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useAccent } from '../context/AccentContext';
 
 export default function DownloadList({ isWebPreview, ipcStatus, currentTab }: { isWebPreview: boolean, ipcStatus: string, currentTab: string }) {
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
@@ -11,6 +12,7 @@ export default function DownloadList({ isWebPreview, ipcStatus, currentTab }: { 
   const [searchQuery, setSearchQuery] = useState('');
   const { theme } = useTheme();
   const { t } = useLanguage();
+  const { tokens } = useAccent();
   const isLight = theme === 'light';
 
   const getCategoryIcon = (category?: string, isMedia?: boolean) => {
@@ -247,21 +249,26 @@ export default function DownloadList({ isWebPreview, ipcStatus, currentTab }: { 
   });
 
   return (
-    <div className={`flex-1 flex flex-col min-h-0 h-full w-full rounded-2xl overflow-hidden relative transition-colors duration-200 ${
-      isLight
-        ? 'bg-white/80 border border-purple-900/10 shadow-[0_10px_30px_-5px_rgba(0,0,0,0.04)] backdrop-blur-md'
-        : 'bg-white/[0.01] border border-white/5 shadow-lg'
-    }`}>
-      {/* Subtle top glow with purple-to-pink gradient */}
-      <div className={`absolute top-0 inset-x-0 h-px ${
+    <div 
+      className={`flex-1 flex flex-col min-h-0 h-full w-full rounded-2xl overflow-hidden relative transition-colors duration-200 ${
         isLight
-          ? 'bg-gradient-to-r from-transparent via-purple-500/40 to-transparent'
-          : 'bg-gradient-to-r from-transparent via-purple-500/30 to-transparent'
-      }`}></div>
+          ? 'bg-white/80 border shadow-[0_10px_30px_-5px_rgba(0,0,0,0.04)] backdrop-blur-md'
+          : 'bg-white/[0.01] border shadow-lg'
+      }`}
+      style={{ borderColor: 'var(--accent-border)' }}
+    >
+      {/* Subtle top glow with dynamic accent gradient */}
+      <div 
+        className="absolute top-0 inset-x-0 h-px"
+        style={{
+          background: `linear-gradient(to right, transparent, var(--accent), transparent)`,
+          opacity: isLight ? 0.4 : 0.6,
+        }}
+      ></div>
       
       <div className={`px-6 py-3.5 flex items-center justify-between shrink-0 transition-colors ${
         isLight
-          ? 'border-b border-purple-900/10 bg-slate-50/60'
+          ? 'border-b border-slate-200/80 bg-slate-50/60'
           : 'border-b border-white/5 bg-black/30'
       }`}>
         <h2 className={`font-display font-medium text-sm ${
@@ -273,20 +280,27 @@ export default function DownloadList({ isWebPreview, ipcStatus, currentTab }: { 
           {currentTab === 'History' && (
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-2.5 rtl:left-auto rtl:right-0 rtl:pl-0 rtl:pr-2.5 flex items-center pointer-events-none">
-                <Search className={`transition-colors size-3.5 ${
-                  isLight ? 'text-slate-400 group-focus-within:text-purple-600' : 'text-slate-500 group-focus-within:text-purple-400'
-                }`} />
+                <Search className="transition-colors size-3.5 text-slate-400 group-focus-within:opacity-100" style={{ color: 'var(--accent)' }} />
               </div>
               <input 
                 type="text" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('downloadList.searchPlaceholder')} 
-                className={`w-44 rounded-lg py-1 pl-7 pr-3 rtl:pl-3 rtl:pr-7 text-xs transition-all focus:outline-none focus:ring-1 ${
+                className={`w-44 rounded-lg py-1 pl-7 pr-3 rtl:pl-3 rtl:pr-7 text-xs transition-all focus:outline-none ${
                   isLight
-                    ? 'bg-white border border-purple-200/80 text-slate-800 placeholder-slate-400 focus:border-purple-500/80 focus:ring-purple-500/20 shadow-sm'
-                    : 'bg-[#12121A]/90 border border-white/5 text-slate-200 placeholder-slate-500 focus:border-purple-500/50 focus:ring-purple-500/50 shadow-inner'
+                    ? 'bg-white text-slate-800 placeholder-slate-400 shadow-sm'
+                    : 'bg-[#12121A]/90 text-slate-200 placeholder-slate-500 shadow-inner'
                 }`}
+                style={{
+                  border: '1px solid var(--accent-border)'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--accent)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--accent-border)';
+                }}
               />
             </div>
           )}
@@ -396,19 +410,29 @@ export default function DownloadList({ isWebPreview, ipcStatus, currentTab }: { 
                 key={item.id} 
                 className={`rounded-xl p-3.5 transition-all relative overflow-hidden group shrink-0 ${
                   isLight
-                    ? 'bg-white/90 border border-purple-100/90 hover:border-purple-300/90 hover:bg-white shadow-[0_2px_12px_rgba(0,0,0,0.02)]'
-                    : 'bg-white/[0.02] border border-white/5 hover:bg-white/[0.04]'
+                    ? 'bg-white/90 border hover:bg-white shadow-[0_2px_12px_rgba(0,0,0,0.02)]'
+                    : 'bg-white/[0.02] border hover:bg-white/[0.04]'
                 }`}
+                style={{
+                  borderColor: 'var(--accent-border)'
+                }}
               >
-                <div className="absolute top-0 left-0 rtl:left-auto rtl:right-0 h-full w-1 bg-gradient-to-b from-purple-500 via-fuchsia-500 to-pink-500 rounded-l-xl rtl:rounded-l-none rtl:rounded-r-xl opacity-60 group-hover:opacity-100 transition-opacity"></div>
+                <div 
+                  className="absolute top-0 left-0 rtl:left-auto rtl:right-0 h-full w-1 rounded-l-xl rtl:rounded-l-none rtl:rounded-r-xl opacity-80 group-hover:opacity-100 transition-opacity"
+                  style={{
+                    background: `linear-gradient(to bottom, var(--accent-gradient-start), var(--accent-gradient-end))`
+                  }}
+                ></div>
                 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pl-2 rtl:pl-0 rtl:pr-2">
                   <div className="flex items-center min-w-0 flex-1">
-                    <div className={`flex-none p-2.5 rounded-xl mr-3 rtl:mr-0 rtl:ml-3 flex items-center justify-center ${
-                      isLight
-                        ? 'bg-purple-50 border border-purple-200/80'
-                        : 'bg-purple-950/20 border border-purple-500/10'
-                    }`}>
+                    <div 
+                      className="flex-none p-2.5 rounded-xl mr-3 rtl:mr-0 rtl:ml-3 flex items-center justify-center border"
+                      style={{
+                        backgroundColor: 'var(--accent-soft)',
+                        borderColor: 'var(--accent-border)'
+                      }}
+                    >
                       {getCategoryIcon(item.category, item.isMedia)}
                     </div>
                     <div className="flex-1 min-w-0 pr-2 rtl:pr-0 rtl:pl-2">
@@ -419,7 +443,14 @@ export default function DownloadList({ isWebPreview, ipcStatus, currentTab }: { 
                           {item.filename || item.url}
                         </h4>
                         {item.isMedia && (
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 shrink-0">
+                          <span 
+                            className="text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 font-medium"
+                            style={{
+                              backgroundColor: 'var(--accent-soft)',
+                              color: 'var(--accent-text)',
+                              borderColor: 'var(--accent-border)'
+                            }}
+                          >
                             MEDIA ENGINE
                           </span>
                         )}
@@ -431,12 +462,12 @@ export default function DownloadList({ isWebPreview, ipcStatus, currentTab }: { 
                         {item.isMedia ? (
                           <>
                             {item.stage && (
-                              <span className="font-mono text-purple-600 dark:text-purple-400 font-medium">
+                              <span className="font-mono font-medium" style={{ color: 'var(--accent-text)' }}>
                                 Stage: {item.stage.replace(/_/g, ' ')}
                               </span>
                             )}
                             {item.speedText && (
-                              <span className={`font-mono font-medium ${isLight ? 'text-purple-700' : 'text-purple-300'}`}>
+                              <span className="font-mono font-medium" style={{ color: 'var(--accent-text)' }}>
                                 {item.speedText}
                               </span>
                             )}
@@ -450,7 +481,7 @@ export default function DownloadList({ isWebPreview, ipcStatus, currentTab }: { 
                           <>
                             <span className="font-mono">{formatBytes(item.downloadedBytes)} / {item.totalBytes ? formatBytes(item.totalBytes) : t('common.unknownSize')}</span>
                             {item.status === 'downloading' && (
-                              <span className={`font-mono font-medium ${isLight ? 'text-purple-700' : 'text-purple-300'}`}>
+                              <span className="font-mono font-medium" style={{ color: 'var(--accent-text)' }}>
                                 {formatBytes(item.speed)}/s
                               </span>
                             )}
@@ -460,24 +491,27 @@ export default function DownloadList({ isWebPreview, ipcStatus, currentTab }: { 
                               </span>
                             )}
                             {item.connections !== undefined && item.connections > 0 && (
-                              <span className={isLight ? 'text-purple-700' : 'text-purple-400/80'}>
+                              <span style={{ color: 'var(--accent-text)' }}>
                                 {item.connections} {t('common.connections')}
                               </span>
                             )}
                           </>
                         )}
                         
-                        <span className={`capitalize font-medium ${
-                          item.status === 'error' || item.status === 'cancelled'
-                            ? isLight ? 'text-rose-600' : 'text-rose-400' 
-                            : item.status === 'completed' 
-                              ? isLight ? 'text-emerald-600' : 'text-emerald-400' 
-                              : isLight ? 'text-purple-600 font-semibold' : 'text-fuchsia-400'
-                        }`}>
+                        <span 
+                          className="capitalize font-medium"
+                          style={
+                            item.status === 'error' || item.status === 'cancelled'
+                              ? { color: '#EF4444' }
+                              : item.status === 'completed'
+                                ? { color: '#10B981' }
+                                : { color: 'var(--accent)' }
+                          }
+                        >
                           {t(`status.${item.status}`) || item.status}
                         </span>
                         {item.error && (
-                          <span className={`truncate max-w-[200px] ${isLight ? 'text-rose-600 font-medium' : 'text-rose-400'}`} title={item.error}>
+                          <span className="truncate max-w-[200px] text-rose-500 font-medium" title={item.error}>
                             {item.error}
                           </span>
                         )}
@@ -488,14 +522,14 @@ export default function DownloadList({ isWebPreview, ipcStatus, currentTab }: { 
                           isLight ? 'bg-slate-100 border-slate-200/80' : 'bg-black/40 border border-white/5'
                         }`}>
                           <div 
-                            className={`h-full transition-all duration-300 rounded-full ${
-                              item.status === 'error' 
-                                ? 'bg-rose-500' 
-                                : isLight
-                                  ? 'bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-500 shadow-[0_0_10px_rgba(168,85,247,0.3)]'
-                                  : 'bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.3)]'
-                            }`}
-                            style={{ width: `${item.progress || 0}%` }}
+                            className="h-full transition-all duration-300 rounded-full"
+                            style={{ 
+                              width: `${item.progress || 0}%`,
+                              background: item.status === 'error' 
+                                ? '#EF4444' 
+                                : `linear-gradient(to right, var(--accent-gradient-start), var(--accent-gradient-end))`,
+                              boxShadow: item.status === 'error' ? 'none' : 'var(--accent-glow-sm)',
+                            }}
                           ></div>
                         </div>
                       )}

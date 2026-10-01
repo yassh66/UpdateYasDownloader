@@ -3,11 +3,13 @@ import { ArrowDownToLine, HardDrive, Zap, Clock } from 'lucide-react';
 import type { DownloadItem } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useAccent } from '../context/AccentContext';
 
 export default function StatsArea() {
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const { theme } = useTheme();
   const { t } = useLanguage();
+  const { tokens } = useAccent();
   const isLight = theme === 'light';
 
   useEffect(() => {
@@ -69,21 +71,32 @@ export default function StatsArea() {
   const currentSpeed = downloads.filter(d => d.status === 'downloading').reduce((acc, d) => acc + (d.speed || 0), 0);
   const totalDownloaded = downloads.reduce((acc, d) => acc + (d.downloadedBytes || 0), 0);
 
-  const darkStats = [
-    { label: t('stats.activeDownloads'), value: activeDownloads.toString(), icon: ArrowDownToLine, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
-    { label: t('stats.currentSpeed'), value: `${formatBytes(currentSpeed)}/s`, icon: Zap, color: 'text-pink-400', bg: 'bg-pink-500/10 border-pink-500/20' },
-    { label: t('stats.totalDownloaded'), value: formatBytes(totalDownloaded), icon: HardDrive, color: 'text-fuchsia-400', bg: 'bg-fuchsia-500/10 border-fuchsia-500/20' },
-    { label: t('stats.uptime'), value: '--', icon: Clock, color: 'text-slate-400', bg: 'bg-white/5 border-white/10' },
+  const stats = [
+    { 
+      label: t('stats.activeDownloads'), 
+      value: activeDownloads.toString(), 
+      icon: ArrowDownToLine,
+      useAccent: true,
+    },
+    { 
+      label: t('stats.currentSpeed'), 
+      value: `${formatBytes(currentSpeed)}/s`, 
+      icon: Zap,
+      useAccent: true,
+    },
+    { 
+      label: t('stats.totalDownloaded'), 
+      value: formatBytes(totalDownloaded), 
+      icon: HardDrive,
+      useAccent: true,
+    },
+    { 
+      label: t('stats.uptime'), 
+      value: '--', 
+      icon: Clock,
+      useAccent: false,
+    },
   ];
-
-  const lightStats = [
-    { label: t('stats.activeDownloads'), value: activeDownloads.toString(), icon: ArrowDownToLine, color: 'text-purple-600', bg: 'bg-purple-50 border-purple-200' },
-    { label: t('stats.currentSpeed'), value: `${formatBytes(currentSpeed)}/s`, icon: Zap, color: 'text-pink-600', bg: 'bg-pink-50 border-pink-200' },
-    { label: t('stats.totalDownloaded'), value: formatBytes(totalDownloaded), icon: HardDrive, color: 'text-fuchsia-600', bg: 'bg-fuchsia-50 border-fuchsia-200' },
-    { label: t('stats.uptime'), value: '--', icon: Clock, color: 'text-slate-600', bg: 'bg-slate-100 border-slate-200' },
-  ];
-
-  const stats = isLight ? lightStats : darkStats;
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5 shrink-0">
@@ -92,19 +105,39 @@ export default function StatsArea() {
           key={i} 
           className={`relative group rounded-2xl p-4 overflow-hidden transition-all duration-200 ${
             isLight
-              ? 'bg-white/80 border border-purple-100/90 shadow-[0_4px_20px_-4px_rgba(112,26,117,0.04)] hover:border-purple-300/80 hover:bg-white backdrop-blur-md'
-              : 'bg-gradient-to-b from-[#111122]/60 to-[#0A0A16]/60 border border-purple-500/10 hover:border-purple-500/25 shadow-sm'
+              ? 'bg-white/85 border shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] hover:bg-white backdrop-blur-md'
+              : 'bg-[#0E0E1C]/70 border hover:bg-[#121224]/80 shadow-sm'
           }`}
+          style={{
+            borderColor: 'var(--accent-border)'
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-border-strong)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-border)';
+          }}
         >
-          <div className={`absolute top-0 right-0 -mt-4 -mr-4 w-20 h-20 rounded-full blur-xl pointer-events-none transition-all ${
-            isLight
-              ? 'bg-gradient-to-br from-purple-400/10 via-pink-400/5 to-transparent group-hover:from-purple-400/20'
-              : 'bg-gradient-to-br from-purple-500/10 via-pink-500/5 to-transparent group-hover:from-purple-500/20'
-          }`}></div>
+          <div 
+            className="absolute top-0 right-0 -mt-4 -mr-4 w-20 h-20 rounded-full blur-xl pointer-events-none transition-all opacity-30 group-hover:opacity-60"
+            style={{
+              background: `radial-gradient(circle, var(--accent) 0%, transparent 70%)`
+            }}
+          ></div>
           
           <div className="flex items-center gap-3 mb-2">
-            <div className={`w-8 h-8 rounded-xl ${stat.bg} flex items-center justify-center border shrink-0 shadow-sm`}>
-              <stat.icon className={`w-4 h-4 ${stat.color}`} strokeWidth={2} />
+            <div 
+              className="w-8 h-8 rounded-xl flex items-center justify-center border shrink-0 shadow-sm transition-transform group-hover:scale-105"
+              style={{
+                backgroundColor: stat.useAccent ? 'var(--accent-soft)' : (isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'),
+                borderColor: stat.useAccent ? 'var(--accent-border)' : (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)'),
+              }}
+            >
+              <stat.icon 
+                className="w-4 h-4" 
+                style={stat.useAccent ? { color: 'var(--accent)' } : undefined}
+                strokeWidth={2} 
+              />
             </div>
             <h3 className={`text-[11px] font-semibold uppercase tracking-wider truncate ${
               isLight ? 'text-slate-500' : 'text-slate-400'
@@ -122,3 +155,4 @@ export default function StatsArea() {
     </div>
   );
 }
+
