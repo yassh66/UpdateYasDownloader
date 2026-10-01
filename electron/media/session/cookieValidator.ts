@@ -212,10 +212,13 @@ export function getSavedCookiesSettings(userDataDir?: string): {
     const raw = fs.readFileSync(settingsFilePath, 'utf8');
     const parsed = JSON.parse(raw);
 
-    const isExplicitlyDisabled = parsed.enableCookiesAuth === false;
-    const rawPath = typeof parsed.cookiesPath === 'string' ? parsed.cookiesPath.trim() : '';
+    // Rule: cookiesPath MUST ONLY be returned when enableCookiesAuth === true
+    if (parsed.enableCookiesAuth !== true) {
+      return { enabled: false };
+    }
 
-    if (isExplicitlyDisabled || !rawPath) {
+    const rawPath = typeof parsed.cookiesPath === 'string' ? parsed.cookiesPath.trim() : '';
+    if (!rawPath) {
       return { enabled: false };
     }
 
@@ -230,20 +233,15 @@ export function getSavedCookiesSettings(userDataDir?: string): {
     for (const cand of candidatePaths) {
       try {
         if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
-          return {
-            enabled: true,
-            cookiesPath: path.isAbsolute(cand) ? cand : path.resolve(cand),
-          };
+          const valResult = validateCookiesFile(cand);
+          if (valResult.valid) {
+            return {
+              enabled: true,
+              cookiesPath: path.isAbsolute(cand) ? cand : path.resolve(cand),
+            };
+          }
         }
       } catch {}
-    }
-
-    // If absolute path was specified even if not in standard relative search
-    if (path.isAbsolute(rawPath) && fs.existsSync(rawPath)) {
-      return {
-        enabled: true,
-        cookiesPath: rawPath,
-      };
     }
 
     return { enabled: false };

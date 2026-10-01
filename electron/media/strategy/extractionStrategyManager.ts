@@ -4,7 +4,7 @@ import { sessionManager } from '../session/sessionManager';
 import { NetscapeCookieExporter } from '../session/netscapeCookieExporter';
 import { MediaDiagnosticsLogger } from '../diagnostics/mediaDiagnosticsLogger';
 import { FailureClassifier, ClassifiedFailure, StrategyOutcome } from './failureClassifier';
-import { getSavedCookiesSettings } from '../session/cookieValidator';
+import { getSavedCookiesSettings, validateCookiesFile } from '../session/cookieValidator';
 
 export interface RecoveryStrategy {
   id: string;
@@ -61,8 +61,17 @@ export class ExtractionStrategyManager {
     // If the user configured a cookies file, use ONLY --cookies.
     // Do NOT add --cookies-from-browser. Do NOT start browser recovery.
     // ----------------------------------------------------
-    const savedCookies = getSavedCookiesSettings();
-    const effectiveCookiesPath = baseOptions?.cookiesPath || (savedCookies.enabled ? savedCookies.cookiesPath : undefined);
+    const savedCookies = getSavedCookiesSettings(baseOptions?.userDataDir);
+    let effectiveCookiesPath: string | undefined;
+
+    if (baseOptions?.cookiesPath) {
+      const val = validateCookiesFile(baseOptions.cookiesPath);
+      if (val.valid) {
+        effectiveCookiesPath = baseOptions.cookiesPath;
+      }
+    } else if (savedCookies.enabled && savedCookies.cookiesPath) {
+      effectiveCookiesPath = savedCookies.cookiesPath;
+    }
 
     if (effectiveCookiesPath) {
       ladder.push({

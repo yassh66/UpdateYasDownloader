@@ -9,7 +9,7 @@ import {
 } from './types';
 import { isYouTubeUrl } from './urlDetector';
 import { binManager } from './bin/binManager';
-import { getSavedCookiesSettings } from './session/cookieValidator';
+import { getSavedCookiesSettings, validateCookiesFile } from './session/cookieValidator';
 
 /**
  * Sanitizes titles for NTFS / FAT32 Windows filesystem restrictions.
@@ -196,8 +196,17 @@ export class YouTubeExtractor implements BaseMediaExtractor {
     }
     args.push('--extractor-args', 'youtube:player_client=web,web_embedded;skip=translated_subs');
 
-    const savedCookies = getSavedCookiesSettings();
-    const effectiveCookies = options?.cookiesPath || (savedCookies.enabled ? savedCookies.cookiesPath : undefined);
+    const savedCookies = getSavedCookiesSettings(options?.userDataDir);
+    let effectiveCookies: string | undefined;
+
+    if (options?.cookiesPath) {
+      const val = validateCookiesFile(options.cookiesPath);
+      if (val.valid) {
+        effectiveCookies = options.cookiesPath;
+      }
+    } else if (savedCookies.enabled && savedCookies.cookiesPath) {
+      effectiveCookies = savedCookies.cookiesPath;
+    }
 
     if (effectiveCookies) {
       const resolved = path.isAbsolute(effectiveCookies)

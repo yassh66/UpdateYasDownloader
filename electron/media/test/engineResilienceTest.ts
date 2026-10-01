@@ -365,14 +365,34 @@ async function runResilienceTests() {
 
   const disabledSettings = getSavedCookiesSettings(prodUserDataDir);
   assert(disabledSettings.enabled === false, '11.2: Settings storage correctly marks disabled cookies');
+  assert(disabledSettings.cookiesPath === undefined, '11.2: Disabled cookies settings returns undefined cookiesPath');
 
-  const disabledArgsExtractor = youtubePlatformExtractor.buildYtdlpArgs(ytUrl, {});
+  const disabledArgsExtractor = youtubePlatformExtractor.buildYtdlpArgs(ytUrl, { userDataDir: prodUserDataDir });
   assert(!disabledArgsExtractor.includes('--cookies'), '11.2: Disabled cookies args DO NOT contain --cookies');
   assert(!disabledArgsExtractor.includes('--cookies-from-browser'), '11.2: Disabled cookies args DO NOT contain --cookies-from-browser');
 
-  const disabledArgsDownloader = universalMediaDownloader.buildDownloadArgs(ytUrl, 'bestvideo+bestaudio/best', '/tmp/out.mp4', {}, 'youtube');
+  const disabledArgsDownloader = universalMediaDownloader.buildDownloadArgs(ytUrl, 'bestvideo+bestaudio/best', '/tmp/out.mp4', { userDataDir: prodUserDataDir }, 'youtube');
   assert(!disabledArgsDownloader.includes('--cookies'), '11.2: Disabled downloader args DO NOT contain --cookies');
   assert(!disabledArgsDownloader.includes('--cookies-from-browser'), '11.2: Disabled downloader args DO NOT contain --cookies-from-browser');
+
+  // Test when enabled=true BUT file does not exist
+  fs.writeFileSync(prodSettingsFile, JSON.stringify({
+    enableCookiesAuth: true,
+    cookiesPath: '/does/not/exist/missing_cookies.txt',
+  }));
+  const missingFileSettings = getSavedCookiesSettings(prodUserDataDir);
+  assert(missingFileSettings.enabled === false, '11.2: Missing cookies file path returns enabled: false');
+
+  // Test when enabled=true BUT file contains invalid junk data
+  const junkCookieFile = path.join(prodUserDataDir, 'junk_cookies.txt');
+  fs.writeFileSync(junkCookieFile, 'THIS IS NOT NETSCAPE FORMAT COOKIE FILE');
+  fs.writeFileSync(prodSettingsFile, JSON.stringify({
+    enableCookiesAuth: true,
+    cookiesPath: junkCookieFile,
+  }));
+  const junkFileSettings = getSavedCookiesSettings(prodUserDataDir);
+  assert(junkFileSettings.enabled === false, '11.2: Invalid junk cookies file returns enabled: false');
+  try { fs.unlinkSync(junkCookieFile); } catch {}
 
   // 11.3: Restart persistence test for settings storage
   // Phase 1: Simulate user setting cookies in App Session 1

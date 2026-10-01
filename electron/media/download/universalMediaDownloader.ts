@@ -10,7 +10,7 @@ import { sessionManager } from '../session/sessionManager';
 import { detectMediaPlatform } from '../urlDetector';
 import { extractionStrategyManager, RecoveryStrategy } from '../strategy/extractionStrategyManager';
 import { MediaDiagnosticsLogger } from '../diagnostics/mediaDiagnosticsLogger';
-import { getSavedCookiesSettings } from '../session/cookieValidator';
+import { getSavedCookiesSettings, validateCookiesFile } from '../session/cookieValidator';
 
 /**
  * Safely and forcefully kills a child process and its sub-processes on Windows and POSIX.
@@ -60,6 +60,7 @@ export interface UniversalDownloadOptions {
   browserCookies?: string;
   customUserAgent?: string;
   proxyUrl?: string;
+  userDataDir?: string;
   onProgress?: (event: MediaDownloadProgressEvent) => void;
   abortSignal?: AbortSignal;
   tempFilesTracker?: Set<string>;
@@ -642,8 +643,23 @@ export class UniversalMediaDownloader {
 
     // Cookies resolution according to priority order:
     // Priority 1: User-configured cookies file
-    const savedCookies = getSavedCookiesSettings();
-    const effectiveCookies = strategy?.cookiesPath || options?.cookiesPath || (savedCookies.enabled ? savedCookies.cookiesPath : undefined);
+    // Rule: cookiesPath MUST ONLY be applied when enableCookiesAuth === true AND file exists AND validation succeeds
+    const savedCookies = getSavedCookiesSettings(options?.userDataDir);
+    let effectiveCookies: string | undefined;
+
+    if (strategy?.cookiesPath) {
+      const val = validateCookiesFile(strategy.cookiesPath);
+      if (val.valid) {
+        effectiveCookies = strategy.cookiesPath;
+      }
+    } else if (options?.cookiesPath) {
+      const val = validateCookiesFile(options.cookiesPath);
+      if (val.valid) {
+        effectiveCookies = options.cookiesPath;
+      }
+    } else if (savedCookies.enabled && savedCookies.cookiesPath) {
+      effectiveCookies = savedCookies.cookiesPath;
+    }
 
     if (effectiveCookies) {
       const resolvedCookies = path.isAbsolute(effectiveCookies)

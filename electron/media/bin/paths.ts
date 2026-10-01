@@ -80,8 +80,10 @@ export function resolveBinaryPath(baseName: string): string {
   }
 
   const app = getElectronApp();
+  const isPackaged = app && Boolean(app.isPackaged);
   const appPath = app && typeof app.getAppPath === 'function' ? app.getAppPath() : null;
   const execDir = process.execPath ? path.dirname(process.execPath) : null;
+  const userDataDir = app && typeof app.getPath === 'function' ? (() => { try { return app.getPath('userData'); } catch { return null; } })() : null;
 
   const candidatePaths: string[] = [];
 
@@ -104,38 +106,55 @@ export function resolveBinaryPath(baseName: string): string {
   if (execDir) {
     candidatePaths.push(
       path.join(execDir, 'resources', 'bin', binName),
+      path.join(execDir, 'resources', 'bin', `${baseName}.exe`),
       path.join(execDir, 'resources', 'bin', 'win-x64', binName),
+      path.join(execDir, 'resources', 'bin', 'win-x64', `${baseName}.exe`),
       path.join(execDir, 'bin', binName),
-      path.join(execDir, 'bin', 'win-x64', binName)
+      path.join(execDir, 'bin', `${baseName}.exe`),
+      path.join(execDir, 'bin', 'win-x64', binName),
+      path.join(execDir, 'bin', 'win-x64', `${baseName}.exe`)
     );
   }
 
-  // 4. Development Workspace Locations
-  const cwd = process.cwd();
-  candidatePaths.push(
-    path.join(cwd, 'bin', 'win-x64', binName),
-    path.join(cwd, 'bin', binName),
-    path.join(cwd, 'bin', isWin ? 'win' : process.platform, binName),
-    path.join(cwd, 'extraResources', 'bin', binName),
-    path.join(cwd, 'extraResources', 'bin', 'win-x64', binName)
-  );
-
-  if (appPath && appPath !== cwd) {
+  // 4. User Data Binaries (for dynamic/downloaded updates)
+  if (userDataDir) {
     candidatePaths.push(
-      path.join(appPath, 'bin', 'win-x64', binName),
-      path.join(appPath, 'bin', binName),
-      path.join(appPath, 'extraResources', 'bin', binName)
+      path.join(userDataDir, 'bin', binName),
+      path.join(userDataDir, 'bin', `${baseName}.exe`),
+      path.join(userDataDir, 'bin', 'win-x64', binName),
+      path.join(userDataDir, 'bin', 'win-x64', `${baseName}.exe`)
     );
   }
 
-  // Relative to compiled module directory (in dist-electron/...)
-  const moduleDir = getModuleDir();
-  candidatePaths.push(
-    path.join(moduleDir, '..', '..', '..', 'bin', 'win-x64', binName),
-    path.join(moduleDir, '..', '..', '..', 'bin', binName),
-    path.join(moduleDir, '..', '..', 'bin', binName),
-    path.join(moduleDir, '..', 'bin', binName)
-  );
+  // 5. Development Workspace Locations (only in non-packaged dev mode)
+  if (!isPackaged) {
+    const cwd = process.cwd();
+    candidatePaths.push(
+      path.join(cwd, 'bin', 'win-x64', binName),
+      path.join(cwd, 'bin', 'win-x64', `${baseName}.exe`),
+      path.join(cwd, 'bin', binName),
+      path.join(cwd, 'bin', isWin ? 'win' : process.platform, binName),
+      path.join(cwd, 'extraResources', 'bin', binName),
+      path.join(cwd, 'extraResources', 'bin', 'win-x64', binName)
+    );
+
+    if (appPath && appPath !== cwd) {
+      candidatePaths.push(
+        path.join(appPath, 'bin', 'win-x64', binName),
+        path.join(appPath, 'bin', binName),
+        path.join(appPath, 'extraResources', 'bin', binName)
+      );
+    }
+
+    // Relative to compiled module directory (in dist-electron/...)
+    const moduleDir = getModuleDir();
+    candidatePaths.push(
+      path.join(moduleDir, '..', '..', '..', 'bin', 'win-x64', binName),
+      path.join(moduleDir, '..', '..', '..', 'bin', binName),
+      path.join(moduleDir, '..', '..', 'bin', binName),
+      path.join(moduleDir, '..', 'bin', binName)
+    );
+  }
 
   // Iterate and return first matched physical executable
   for (const candidate of candidatePaths) {

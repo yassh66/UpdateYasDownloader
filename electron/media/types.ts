@@ -118,6 +118,7 @@ export interface ExtractionOptions {
   includeSubtitles?: boolean;
   maxPlaylistItems?: number;
   socketTimeout?: number;
+  userDataDir?: string;
 }
 
 export interface BaseMediaExtractor {
