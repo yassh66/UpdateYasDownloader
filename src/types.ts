@@ -95,6 +95,7 @@ export interface AppSettings {
   language?: 'en' | 'fa';
   accentColor?: string;
   cookiesPath?: string;
+  enableCookiesAuth?: boolean;
 }
 
 export interface ElectronAPI {
@@ -123,6 +124,7 @@ export interface ElectronAPI {
   updateSettings: (settings: Partial<AppSettings>) => Promise<void>;
   selectFolder: () => Promise<string | null>;
   selectFile?: (filterName?: string, extensions?: string[]) => Promise<string | null>;
+  validateCookies?: (filePath: string) => Promise<{ valid: boolean; message: string; cookieCount?: number; hasYouTubeCookies?: boolean; fileSizeBytes?: number }>;
   getTheme?: () => Promise<'dark' | 'light'>;
   setTheme?: (theme: 'dark' | 'light') => Promise<void>;
   onThemeChanged?: (callback: (theme: 'dark' | 'light') => void) => () => void;
@@ -164,6 +166,7 @@ export interface MediaEngineAPI {
   extractInfo: (url: string, options?: any) => Promise<any>;
   getFormats: (mediaInfo: any, targetQuality?: string, container?: string) => Promise<any>;
   checkBinaries?: () => Promise<any>;
+  validateCookies?: (filePath: string) => Promise<{ valid: boolean; message: string; cookieCount?: number; hasYouTubeCookies?: boolean; fileSizeBytes?: number }>;
   startDownload?: (options: any) => Promise<{ success: boolean; jobId?: string; outputPath?: string; error?: string }>;
   pauseDownload?: (jobId: string) => Promise<boolean>;
   resumeDownload?: (jobId: string) => Promise<{ success: boolean; jobId?: string; outputPath?: string; error?: string }>;

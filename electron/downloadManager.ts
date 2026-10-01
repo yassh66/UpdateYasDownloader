@@ -50,7 +50,9 @@ export interface AppSettings {
   extensionId?: string;
   theme?: 'dark' | 'light';
   language?: 'en' | 'fa';
+  accentColor?: string;
   cookiesPath?: string;
+  enableCookiesAuth?: boolean;
 }
 
 interface Segment {

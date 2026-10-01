@@ -4,6 +4,7 @@ import { sessionManager } from '../session/sessionManager';
 import { NetscapeCookieExporter } from '../session/netscapeCookieExporter';
 import { MediaDiagnosticsLogger } from '../diagnostics/mediaDiagnosticsLogger';
 import { FailureClassifier, ClassifiedFailure, StrategyOutcome } from './failureClassifier';
+import { getSavedCookiesSettings } from '../session/cookieValidator';
 
 export interface RecoveryStrategy {
   id: string;
@@ -56,48 +57,86 @@ export class ExtractionStrategyManager {
     const isInstagram = platform === 'instagram' || url.includes('instagram.com') || url.includes('instagr.am');
 
     // ----------------------------------------------------
-    // TIER 1: Standard Modern Extraction (Baseline)
+    // PRIORITY 1: User-Configured cookies.txt Authentication
+    // If the user configured a cookies file, use ONLY --cookies.
+    // Do NOT add --cookies-from-browser. Do NOT start browser recovery.
     // ----------------------------------------------------
-    if (isYouTube) {
+    const savedCookies = getSavedCookiesSettings();
+    const effectiveCookiesPath = baseOptions?.cookiesPath || (savedCookies.enabled ? savedCookies.cookiesPath : undefined);
+
+    if (effectiveCookiesPath) {
       ladder.push({
-        id: 'tier1_youtube_web_embedded',
+        id: 'tier1_user_cookies_standard',
         tier: 1,
-        name: 'Standard (Web/Web Embedded)',
-        description: 'Default yt-dlp web player extraction with EJS solver',
-        playerClient: 'web,web_embedded;skip=translated_subs',
-        cookiesPath: baseOptions?.cookiesPath,
-        browserCookie: baseOptions?.browserCookies,
+        name: 'Configured Cookies Authentication (Standard)',
+        description: `Uses user-configured cookies: ${effectiveCookiesPath}`,
+        cookiesPath: effectiveCookiesPath,
+        playerClient: isYouTube ? 'web,web_embedded;skip=translated_subs' : undefined,
       });
-    } else if (isInstagram) {
+
+      if (isYouTube) {
+        ladder.push({
+          id: 'tier1_user_cookies_ios',
+          tier: 1,
+          name: 'Configured Cookies Authentication (iOS Client)',
+          description: 'Uses user-configured cookies with iOS client protocol',
+          cookiesPath: effectiveCookiesPath,
+          playerClient: 'ios',
+        });
+
+        ladder.push({
+          id: 'tier1_user_cookies_android',
+          tier: 1,
+          name: 'Configured Cookies Authentication (Android Client)',
+          description: 'Uses user-configured cookies with Android client protocol',
+          cookiesPath: effectiveCookiesPath,
+          playerClient: 'android,web',
+        });
+
+        ladder.push({
+          id: 'tier1_user_cookies_tv',
+          tier: 1,
+          name: 'Configured Cookies Authentication (TV Client)',
+          description: 'Uses user-configured cookies with TV client protocol',
+          cookiesPath: effectiveCookiesPath,
+          playerClient: 'tv_embedded,tv',
+        });
+      }
+
+      return ladder;
+    }
+
+    // ----------------------------------------------------
+    // PRIORITY 3 (OPTIONAL): Explicit User-Selected Browser Session
+    // ONLY used if the user explicitly chose a browser in settings/options.
+    // Never automatically guessed or scanned.
+    // ----------------------------------------------------
+    if (baseOptions?.browserCookies) {
       ladder.push({
-        id: 'tier1_instagram_desktop',
-        tier: 1,
-        name: 'Standard Instagram Desktop',
-        description: 'Clean desktop headers and tracking-stripped URL',
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        customHeaders: {
-          Referer: 'https://www.instagram.com/',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-        cookiesPath: baseOptions?.cookiesPath,
-        browserCookie: baseOptions?.browserCookies,
-      });
-    } else {
-      ladder.push({
-        id: 'tier1_generic',
-        tier: 1,
-        name: 'Standard Platform Engine',
-        description: 'Default platform extraction',
-        cookiesPath: baseOptions?.cookiesPath,
-        browserCookie: baseOptions?.browserCookies,
+        id: 'tier0_user_browser_cookies',
+        tier: 0,
+        name: `User-Selected Browser Session (${baseOptions.browserCookies})`,
+        description: `Uses explicit user-chosen browser: ${baseOptions.browserCookies}`,
+        browserCookie: baseOptions.browserCookies,
+        playerClient: isYouTube ? 'web,web_embedded;skip=translated_subs' : undefined,
       });
     }
 
     // ----------------------------------------------------
-    // TIER 2: Platform Client Rotation / Mobile User-Agents
+    // PRIORITY 2: Normal yt-dlp Extraction (Baseline)
+    // No cookie file exists. Try standard player clients and mobile bypasses.
     // ----------------------------------------------------
     if (isYouTube) {
-      // 2a: iOS Client - widely known to bypass bot checks without login
+      // 2a: Standard yt-dlp Web Extraction (Baseline)
+      ladder.push({
+        id: 'tier2_youtube_web_embedded',
+        tier: 2,
+        name: 'Standard Web Extraction (yt-dlp core)',
+        description: 'Default web player extraction with EJS solver',
+        playerClient: 'web,web_embedded;skip=translated_subs',
+      });
+
+      // 2b: iOS Client Rotation - known to bypass bot challenges without cookies
       ladder.push({
         id: 'tier2_youtube_ios',
         tier: 2,
@@ -106,7 +145,7 @@ export class ExtractionStrategyManager {
         playerClient: 'ios',
       });
 
-      // 2b: Android Client
+      // 2c: Android Client Rotation
       ladder.push({
         id: 'tier2_youtube_android',
         tier: 2,
@@ -115,7 +154,7 @@ export class ExtractionStrategyManager {
         playerClient: 'android,web',
       });
 
-      // 2c: Mobile Web Client
+      // 2d: Mobile Web Client Rotation
       ladder.push({
         id: 'tier2_youtube_mweb',
         tier: 2,
@@ -124,7 +163,7 @@ export class ExtractionStrategyManager {
         playerClient: 'mweb',
       });
 
-      // 2d: TV Embedded Client
+      // 2e: TV Embedded Client Rotation
       ladder.push({
         id: 'tier2_youtube_tv_embedded',
         tier: 2,
@@ -133,7 +172,7 @@ export class ExtractionStrategyManager {
         playerClient: 'tv_embedded,tv',
       });
 
-      // 2e: Web Creator Client
+      // 2f: Web Creator Client Rotation
       ladder.push({
         id: 'tier2_youtube_web_creator',
         tier: 2,
@@ -142,6 +181,18 @@ export class ExtractionStrategyManager {
         playerClient: 'web_creator',
       });
     } else if (isInstagram) {
+      ladder.push({
+        id: 'tier2_instagram_desktop',
+        tier: 2,
+        name: 'Standard Instagram Desktop',
+        description: 'Clean desktop headers and tracking-stripped URL',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        customHeaders: {
+          Referer: 'https://www.instagram.com/',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      });
+
       ladder.push({
         id: 'tier2_instagram_mobile_app',
         tier: 2,
@@ -153,55 +204,12 @@ export class ExtractionStrategyManager {
           Referer: 'https://www.instagram.com/',
         },
       });
-    }
-
-    // ----------------------------------------------------
-    // TIER 3: Automatic Browser Cookies Discovery
-    // ----------------------------------------------------
-    const installedBrowsers = browserCookieReader.getInstalledBrowsers().filter((b) => b.isAvailable);
-    const browserOrder = ['chrome', 'edge', 'firefox', 'brave', 'opera', 'vivaldi'];
-
-    for (const bKey of browserOrder) {
-      const match = installedBrowsers.find((b) => b.browser === bKey);
-      if (match) {
-        ladder.push({
-          id: `tier3_browser_${bKey}`,
-          tier: 3,
-          name: `Browser Session (${match.displayName})`,
-          description: `Automatically injects cookies from installed ${match.displayName}`,
-          browserCookie: bKey,
-          playerClient: isYouTube ? 'web,ios' : undefined,
-        });
-      }
-    }
-
-    // ----------------------------------------------------
-    // TIER 4: Application / Session Cookies Export
-    // ----------------------------------------------------
-    const sessionCookieArg = sessionManager.getYtDlpCookiesFromBrowserArg(platform);
-    if (sessionCookieArg && !ladder.some((s) => s.browserCookie === sessionCookieArg)) {
+    } else {
       ladder.push({
-        id: 'tier4_configured_session',
-        tier: 4,
-        name: 'Application Session Profile',
-        description: `Uses user configured session profile: ${sessionCookieArg}`,
-        browserCookie: sessionCookieArg,
-        playerClient: isYouTube ? 'web,ios' : undefined,
-      });
-    }
-
-    // ----------------------------------------------------
-    // TIER 5: Custom cookies.txt Auto-Detection
-    // ----------------------------------------------------
-    const autoDetectedCookies = NetscapeCookieExporter.findCustomCookiesFile();
-    if (autoDetectedCookies && autoDetectedCookies !== baseOptions?.cookiesPath) {
-      ladder.push({
-        id: 'tier5_custom_cookies_file',
-        tier: 5,
-        name: 'Custom Netscape Cookies File',
-        description: `Uses detected cookies.txt at "${autoDetectedCookies}"`,
-        cookiesPath: autoDetectedCookies,
-        playerClient: isYouTube ? 'web,ios' : undefined,
+        id: 'tier2_generic',
+        tier: 2,
+        name: 'Standard Platform Engine',
+        description: 'Default platform extraction',
       });
     }
 
@@ -211,15 +219,15 @@ export class ExtractionStrategyManager {
   /**
    * Classifies an error into a structured failure report.
    */
-  public classifyFailure(errorMessage: string, stderr?: string): ClassifiedFailure {
-    return FailureClassifier.classify(errorMessage, stderr);
+  public classifyFailure(errorMessage: string, stderr?: string, isYouTubeContext?: boolean): ClassifiedFailure {
+    return FailureClassifier.classify(errorMessage, stderr, isYouTubeContext);
   }
 
   /**
    * Determines if an error is retryable across strategies.
    */
-  public isRecoverableError(errorMessage: string, stderr?: string): boolean {
-    const classification = this.classifyFailure(errorMessage, stderr);
+  public isRecoverableError(errorMessage: string, stderr?: string, isYouTubeContext?: boolean): boolean {
+    const classification = this.classifyFailure(errorMessage, stderr, isYouTubeContext);
     return classification.isRetryable;
   }
 }

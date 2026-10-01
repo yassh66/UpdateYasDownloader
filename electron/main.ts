@@ -220,6 +220,12 @@ if (!gotTheLock) {
       return result.filePaths[0];
     });
 
+    // Validate cookies.txt Netscape format and YouTube session
+    ipcMain.handle('validate-cookies', async (_event, filePath: string) => {
+      const { validateCookiesFile } = await import('./media/session/cookieValidator');
+      return validateCookiesFile(filePath);
+    });
+
     // Open Manual Download Dialog
     ipcMain.handle('open-download-dialog', (_event, options: any) => {
       if (downloadManager) {

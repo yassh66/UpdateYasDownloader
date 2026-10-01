@@ -1,3 +1,4 @@
+import path from 'path';
 import {
   BaseMediaExtractor,
   ExtractionOptions,
@@ -8,6 +9,7 @@ import {
 } from './types';
 import { isYouTubeUrl } from './urlDetector';
 import { binManager } from './bin/binManager';
+import { getSavedCookiesSettings } from './session/cookieValidator';
 
 /**
  * Sanitizes titles for NTFS / FAT32 Windows filesystem restrictions.
@@ -194,11 +196,13 @@ export class YouTubeExtractor implements BaseMediaExtractor {
     }
     args.push('--extractor-args', 'youtube:player_client=web,web_embedded;skip=translated_subs');
 
-    if (options?.cookiesPath) {
-      const pathModule = require('path');
-      const resolved = pathModule.isAbsolute(options.cookiesPath)
-        ? options.cookiesPath
-        : pathModule.resolve(options.cookiesPath);
+    const savedCookies = getSavedCookiesSettings();
+    const effectiveCookies = options?.cookiesPath || (savedCookies.enabled ? savedCookies.cookiesPath : undefined);
+
+    if (effectiveCookies) {
+      const resolved = path.isAbsolute(effectiveCookies)
+        ? effectiveCookies
+        : path.resolve(effectiveCookies);
       args.push('--cookies', resolved);
     } else if (options?.browserCookies) {
       args.push('--cookies-from-browser', options.browserCookies);
@@ -251,7 +255,20 @@ export class YouTubeExtractor implements BaseMediaExtractor {
       return this.parseYtdlpDump(parsedJson, url);
     } catch (error: any) {
       // Re-throw with formatted context for UI handling
-      const message = error.message || 'Unknown error occurred during YouTube extraction.';
+      const rawMsg = `${error.message || ''}\n${error.stderr || ''}`.toLowerCase();
+      let message = error.message || 'Unknown error occurred during YouTube extraction.';
+
+      if (
+        rawMsg.includes('sign in') ||
+        rawMsg.includes('bot') ||
+        rawMsg.includes('confirm your age') ||
+        rawMsg.includes('private video') ||
+        rawMsg.includes('403: forbidden') ||
+        rawMsg.includes('403 forbidden')
+      ) {
+        message = 'YouTube requires authentication. Add a cookies.txt file in Settings > YouTube Authentication.';
+      }
+
       const enrichedError: any = new Error(message);
       enrichedError.platform = this.platform;
       enrichedError.originalUrl = url;

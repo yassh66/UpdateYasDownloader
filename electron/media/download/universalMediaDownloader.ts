@@ -10,6 +10,7 @@ import { sessionManager } from '../session/sessionManager';
 import { detectMediaPlatform } from '../urlDetector';
 import { extractionStrategyManager, RecoveryStrategy } from '../strategy/extractionStrategyManager';
 import { MediaDiagnosticsLogger } from '../diagnostics/mediaDiagnosticsLogger';
+import { getSavedCookiesSettings } from '../session/cookieValidator';
 
 /**
  * Safely and forcefully kills a child process and its sub-processes on Windows and POSIX.
@@ -639,27 +640,23 @@ export class UniversalMediaDownloader {
       args.push('--user-agent', userAgent);
     }
 
-    // Cookies resolution
-    if (strategy?.cookiesPath) {
-      const resolvedCookies = path.isAbsolute(strategy.cookiesPath)
-        ? strategy.cookiesPath
-        : path.resolve(strategy.cookiesPath);
+    // Cookies resolution according to priority order:
+    // Priority 1: User-configured cookies file
+    const savedCookies = getSavedCookiesSettings();
+    const effectiveCookies = strategy?.cookiesPath || options?.cookiesPath || (savedCookies.enabled ? savedCookies.cookiesPath : undefined);
+
+    if (effectiveCookies) {
+      const resolvedCookies = path.isAbsolute(effectiveCookies)
+        ? effectiveCookies
+        : path.resolve(effectiveCookies);
       args.push('--cookies', resolvedCookies);
     } else if (strategy?.browserCookie) {
+      // Priority 3: Optional explicit user-selected browser session ONLY
       args.push('--cookies-from-browser', strategy.browserCookie);
-    } else if (options?.cookiesPath) {
-      const resolvedCookies = path.isAbsolute(options.cookiesPath)
-        ? options.cookiesPath
-        : path.resolve(options.cookiesPath);
-      args.push('--cookies', resolvedCookies);
     } else if (options?.browserCookies) {
       args.push('--cookies-from-browser', options.browserCookies);
-    } else {
-      const sessionArg = sessionManager.getYtDlpCookiesFromBrowserArg(platform);
-      if (sessionArg) {
-        args.push('--cookies-from-browser', sessionArg);
-      }
     }
+    // Never automatically inject --cookies-from-browser!
 
     // Proxy support
     if (options?.proxyUrl) {
@@ -753,7 +750,25 @@ export class UniversalMediaDownloader {
       }
     }
 
-    throw lastError || new Error(`Download failed for ${stageLabel}.`);
+    const isYt = platform === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be');
+    const finalClassification = extractionStrategyManager.classifyFailure(lastError?.message || '', lastError?.stderr, isYt);
+    let finalErrMsg = lastError?.message || `Download failed for ${stageLabel}.`;
+
+    if (isYt && (
+      finalClassification.category === 'BOT_CHALLENGE' ||
+      finalClassification.category === 'AUTH_REQUIRED' ||
+      finalClassification.requiresAuth ||
+      String(lastError?.message || '').toLowerCase().includes('sign in') ||
+      String(lastError?.stderr || '').toLowerCase().includes('sign in') ||
+      String(lastError?.message || '').toLowerCase().includes('403') ||
+      String(lastError?.stderr || '').toLowerCase().includes('403')
+    )) {
+      finalErrMsg = 'YouTube requires authentication. Add a cookies.txt file in Settings > YouTube Authentication.';
+    }
+
+    const finalErr: any = new Error(finalErrMsg);
+    finalErr.rawError = lastError;
+    throw finalErr;
   }
 
   /**

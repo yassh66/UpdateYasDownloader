@@ -31,6 +31,7 @@ import { mediaCleanupService, MediaCleanupService } from './cleanup/mediaCleanup
 import { mediaHistoryStore, MediaHistoryStore } from './storage/mediaHistoryStore';
 import { extractionStrategyManager, ExtractionStrategyManager } from './strategy/extractionStrategyManager';
 import { MediaDiagnosticsLogger } from './diagnostics/mediaDiagnosticsLogger';
+import { getSavedCookiesSettings } from './session/cookieValidator';
 
 export class MediaEngine {
   public readonly registry: ExtractorRegistry = extractorRegistry;
@@ -89,7 +90,13 @@ export class MediaEngine {
       throw new Error(`URL is not a recognized media platform: ${url}`);
     }
 
-    return await this.registry.extractInfo(detection.canonicalUrl || url, options);
+    const savedCookies = getSavedCookiesSettings();
+    const effectiveOptions: ExtractionOptions = {
+      ...options,
+      cookiesPath: options?.cookiesPath || (savedCookies.enabled ? savedCookies.cookiesPath : undefined),
+    };
+
+    return await this.registry.extractInfo(detection.canonicalUrl || url, effectiveOptions);
   }
 
   /**

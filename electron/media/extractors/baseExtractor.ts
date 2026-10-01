@@ -12,6 +12,7 @@ import { binManager } from '../bin/binManager';
 import { sessionManager } from '../session/sessionManager';
 import { extractionStrategyManager, RecoveryStrategy } from '../strategy/extractionStrategyManager';
 import { MediaDiagnosticsLogger } from '../diagnostics/mediaDiagnosticsLogger';
+import { getSavedCookiesSettings } from '../session/cookieValidator';
 
 /**
  * Sanitizes titles for NTFS / FAT32 Windows filesystem restrictions.
@@ -119,28 +120,23 @@ export abstract class AbstractBaseMediaExtractor implements BaseMediaExtractor {
       args.push('--user-agent', userAgent);
     }
 
-    // Cookies resolution according to strategy priority
-    if (strategy?.cookiesPath) {
-      const resolvedCookies = path.isAbsolute(strategy.cookiesPath)
-        ? strategy.cookiesPath
-        : path.resolve(strategy.cookiesPath);
+    // Cookies resolution according to priority order:
+    // Priority 1: User configured cookies file (takes absolute precedence)
+    const savedCookies = getSavedCookiesSettings();
+    const effectiveCookies = strategy?.cookiesPath || options?.cookiesPath || (savedCookies.enabled ? savedCookies.cookiesPath : undefined);
+
+    if (effectiveCookies) {
+      const resolvedCookies = path.isAbsolute(effectiveCookies)
+        ? effectiveCookies
+        : path.resolve(effectiveCookies);
       args.push('--cookies', resolvedCookies);
     } else if (strategy?.browserCookie) {
+      // Priority 3: Optional explicit user-selected browser session ONLY
       args.push('--cookies-from-browser', strategy.browserCookie);
-    } else if (options?.cookiesPath) {
-      const resolvedCookies = path.isAbsolute(options.cookiesPath)
-        ? options.cookiesPath
-        : path.resolve(options.cookiesPath);
-      args.push('--cookies', resolvedCookies);
     } else if (options?.browserCookies) {
       args.push('--cookies-from-browser', options.browserCookies);
-    } else {
-      // Check session manager for platform-specific or global browser session
-      const sessionArg = sessionManager.getYtDlpCookiesFromBrowserArg(this.platform);
-      if (sessionArg) {
-        args.push('--cookies-from-browser', sessionArg);
-      }
     }
+    // Note: Never automatically inject --cookies-from-browser if no cookies or browser specified!
 
     if (options?.proxyUrl) {
       args.push('--proxy', options.proxyUrl);
@@ -384,19 +380,27 @@ export abstract class AbstractBaseMediaExtractor implements BaseMediaExtractor {
     }
 
     // All recovery tiers exhausted
+    const isYtUrl = this.platform === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be');
     const finalClassification = extractionStrategyManager.classifyFailure(lastError?.message || '', lastError?.stderr);
     let message = finalClassification.userMessage;
 
-    if (finalClassification.category === 'UNKNOWN_ERROR') {
+    if (isYtUrl && (
+      finalClassification.category === 'BOT_CHALLENGE' ||
+      finalClassification.category === 'AUTH_REQUIRED' ||
+      finalClassification.requiresAuth ||
+      String(lastError?.message || '').toLowerCase().includes('sign in') ||
+      String(lastError?.stderr || '').toLowerCase().includes('sign in') ||
+      String(lastError?.message || '').toLowerCase().includes('403') ||
+      String(lastError?.stderr || '').toLowerCase().includes('403')
+    )) {
+      message = 'YouTube requires authentication. Add a cookies.txt file in Settings > YouTube Authentication.';
+    } else if (finalClassification.category === 'UNKNOWN_ERROR') {
       message = lastError?.message || `Unable to extract media from this link with ${this.name}.`;
     }
 
     const enrichedError: any = new Error(message);
     enrichedError.platform = this.platform;
     enrichedError.classification = finalClassification;
-    enrichedError.originalUrl = url;
-    enrichedError.rawError = lastError;
-    throw enrichedError;
     enrichedError.originalUrl = url;
     enrichedError.rawError = lastError;
     throw enrichedError;

@@ -35,6 +35,8 @@ function initWebPreviewMocks() {
       launchOnStartup: false,
       speedLimit: 0,
       autoIntercept: true,
+      enableCookiesAuth: false,
+      cookiesPath: '',
       theme: (localStorage.getItem('yas_downloader_theme') as any) || 'dark',
       accentColor: localStorage.getItem('yas_downloader_accent') || '#6E4BFF'
     };
@@ -45,6 +47,18 @@ function initWebPreviewMocks() {
       minimizeWindow: async () => { console.log('Mock: minimize window'); },
       maximizeWindow: async () => { console.log('Mock: maximize window'); },
       closeWindow: async () => { console.log('Mock: close window'); },
+      validateCookies: async (filePath: string) => {
+        if (!filePath) {
+          return { valid: false, message: 'No cookies file path provided.', cookieCount: 0, hasYouTubeCookies: false };
+        }
+        return {
+          valid: true,
+          message: 'Valid Netscape cookies file (Simulated preview). YouTube authentication verified.',
+          cookieCount: 42,
+          hasYouTubeCookies: true,
+          fileSizeBytes: 8192
+        };
+      },
       startDownload: async (input: string | StartDownloadOptions) => {
         const opts: StartDownloadOptions = typeof input === 'string' ? { url: input } : input;
         const id = Math.random().toString(36).substring(7);

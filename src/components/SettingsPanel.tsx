@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Folder, HardDrive, Layers, Zap, Check, Palette, Moon, Sun, Languages, Globe, ShieldCheck, FileText, Trash2, KeyRound, Sparkles, RefreshCw } from 'lucide-react';
+import { Folder, HardDrive, Layers, Zap, Check, Palette, Moon, Sun, Languages, Globe, ShieldCheck, FileText, Trash2, KeyRound, Sparkles, RefreshCw, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import GlassButton from './GlassButton';
 import type { AppSettings } from '../types';
 import { useTheme, ThemeMode } from '../context/ThemeContext';
@@ -12,7 +12,9 @@ const defaultSettings: AppSettings = {
   maxConnections: 8,
   launchOnStartup: false,
   speedLimit: 0,
-  autoIntercept: true
+  autoIntercept: true,
+  enableCookiesAuth: false,
+  cookiesPath: ''
 };
 
 export default function SettingsPanel() {
@@ -20,6 +22,14 @@ export default function SettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [extensionId, setExtensionId] = useState('');
   const [integrationStatus, setIntegrationStatus] = useState('');
+  const [validatingCookies, setValidatingCookies] = useState(false);
+  const [cookieValidationResult, setCookieValidationResult] = useState<{
+    valid: boolean;
+    message: string;
+    cookieCount?: number;
+    hasYouTubeCookies?: boolean;
+    fileSizeBytes?: number;
+  } | null>(null);
   const { theme, setTheme } = useTheme();
   const { language, setLanguage, t, isRTL } = useLanguage();
   const { accentColor, setAccentColor, resetAccentColor, isCustomColor, activePresetId } = useAccent();
@@ -104,6 +114,8 @@ export default function SettingsPanel() {
         const file = await window.electronAPI.selectFile('Cookies File (*.txt)', ['txt']);
         if (file) {
           handleChange('cookiesPath', file);
+          handleChange('enableCookiesAuth', true);
+          setCookieValidationResult(null);
         }
       } else {
         const input = document.createElement('input');
@@ -112,7 +124,10 @@ export default function SettingsPanel() {
         input.onchange = (e: any) => {
           const f = e.target.files?.[0];
           if (f && f.name) {
-            handleChange('cookiesPath', f.path || f.name);
+            const chosen = f.path || f.name;
+            handleChange('cookiesPath', chosen);
+            handleChange('enableCookiesAuth', true);
+            setCookieValidationResult(null);
           }
         };
         input.click();
@@ -124,6 +139,47 @@ export default function SettingsPanel() {
 
   const handleClearCookies = () => {
     handleChange('cookiesPath', '');
+    handleChange('enableCookiesAuth', false);
+    setCookieValidationResult(null);
+  };
+
+  const handleValidateCookies = async () => {
+    if (!settings.cookiesPath || !settings.cookiesPath.trim()) {
+      setCookieValidationResult({
+        valid: false,
+        message: t('settings.cookiesNoPath') || 'Please select a cookies.txt file first.',
+      });
+      return;
+    }
+
+    setValidatingCookies(true);
+    setCookieValidationResult(null);
+
+    try {
+      let result: any;
+      if (window.electronAPI?.validateCookies) {
+        result = await window.electronAPI.validateCookies(settings.cookiesPath.trim());
+      } else if (window.mediaEngine?.validateCookies) {
+        result = await window.mediaEngine.validateCookies(settings.cookiesPath.trim());
+      } else {
+        // Fallback for browser preview environment
+        result = {
+          valid: true,
+          message: 'Valid Netscape cookies file (Simulated preview). YouTube authentication verified.',
+          cookieCount: 42,
+          hasYouTubeCookies: true,
+          fileSizeBytes: 8192,
+        };
+      }
+      setCookieValidationResult(result);
+    } catch (err: any) {
+      setCookieValidationResult({
+        valid: false,
+        message: err.message || 'Failed to validate cookies file.',
+      });
+    } finally {
+      setValidatingCookies(false);
+    }
   };
 
   const handleInstallIntegration = async () => {
@@ -906,69 +962,139 @@ export default function SettingsPanel() {
           </div>
         </section>
 
-        {/* Authentication & Cookies Settings */}
+        {/* YouTube Authentication Settings */}
         <section>
           <div className="flex items-center gap-2 mb-3">
             <ShieldCheck size={15} style={{ color: 'var(--accent)' }} />
             <h3 className={`text-xs font-semibold uppercase tracking-wider ${
               isLight ? 'text-slate-700' : 'text-slate-300'
             }`}>
-              {t('settings.authCookies')}
+              {t('settings.youtubeAuth')}
             </h3>
           </div>
           <div 
-            className={`rounded-xl p-4 transition-colors border ${
+            className={`rounded-xl p-4 transition-colors border space-y-4 ${
               isLight
                 ? 'bg-white/90 shadow-[0_2px_8px_rgba(0,0,0,0.02)]'
                 : 'bg-[#111122]/60'
             }`}
             style={{ borderColor: 'var(--accent-border)' }}
           >
-            <div className="mb-2">
-              <label className={`text-xs font-medium block mb-0.5 ${
+            {/* Option: [ ] Enable cookies.txt authentication */}
+            <div 
+              className={`p-3 rounded-lg flex items-center justify-between cursor-pointer transition-colors border ${
+                isLight ? 'bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/80' : 'bg-black/30 hover:bg-black/50 border-white/5'
+              }`}
+              onClick={() => handleChange('enableCookiesAuth', !settings.enableCookiesAuth)}
+            >
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={!!settings.enableCookiesAuth}
+                  onChange={(e) => handleChange('enableCookiesAuth', e.target.checked)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-4 h-4 rounded cursor-pointer"
+                  style={{ accentColor: 'var(--accent)' }}
+                />
+                <div>
+                  <span className={`text-xs font-semibold block ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                    {t('settings.enableCookiesAuth')}
+                  </span>
+                  <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {t('settings.enableCookiesAuthDesc')}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Path: C:\... */}
+            <div>
+              <label className={`text-xs font-medium block mb-1.5 ${
                 isLight ? 'text-slate-800' : 'text-slate-300'
               }`}>
-                {t('settings.cookiesTitle')}
+                {t('settings.cookiesPathLabel')}
               </label>
-              <p className={`text-[11px] mb-2.5 leading-relaxed ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                {t('settings.cookiesDesc')}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div 
-                className={`flex-1 rounded-lg px-3.5 py-2 text-xs font-mono truncate flex items-center gap-2 border ${
-                  settings.cookiesPath
-                    ? isLight
-                      ? 'bg-slate-50 font-semibold'
-                      : 'bg-black/40 font-semibold'
-                    : isLight
-                      ? 'bg-slate-50 text-slate-400 italic'
-                      : 'bg-black/40 text-slate-500 italic'
-                }`}
-                style={{ 
-                  borderColor: 'var(--accent-border)',
-                  color: settings.cookiesPath ? 'var(--accent-text)' : undefined
-                }}
-              >
-                <FileText size={14} style={{ color: settings.cookiesPath ? 'var(--accent)' : undefined }} className={settings.cookiesPath ? "" : "text-slate-400 opacity-60"} />
-                <span className="truncate">{settings.cookiesPath || t('settings.cookiesPlaceholder')}</span>
-              </div>
 
-              {settings.cookiesPath && (
-                <GlassButton
-                  variant="secondary"
-                  onClick={handleClearCookies}
-                  className="whitespace-nowrap flex items-center gap-1 text-xs py-2 px-3 hover:text-rose-500 shrink-0"
-                  title="Remove Cookies File"
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <div 
+                  className={`flex-1 rounded-lg px-3.5 py-2 text-xs font-mono truncate flex items-center gap-2 border ${
+                    settings.cookiesPath
+                      ? isLight
+                        ? 'bg-slate-50 font-semibold text-slate-800'
+                        : 'bg-black/40 font-semibold text-slate-200'
+                      : isLight
+                        ? 'bg-slate-50 text-slate-400 italic'
+                        : 'bg-black/40 text-slate-500 italic'
+                  }`}
+                  style={{ 
+                    borderColor: 'var(--accent-border)',
+                  }}
                 >
-                  <Trash2 size={13} className="text-rose-500" /> {t('settings.clearCookies')}
-                </GlassButton>
-              )}
+                  <FileText size={14} style={{ color: settings.cookiesPath ? 'var(--accent)' : undefined }} className={settings.cookiesPath ? "" : "text-slate-400 opacity-60"} />
+                  <span className="truncate">{settings.cookiesPath || t('settings.cookiesPlaceholder')}</span>
+                </div>
 
-              <GlassButton onClick={handleSelectCookiesFile} className="whitespace-nowrap flex items-center gap-1.5 text-xs py-2 px-3.5 shrink-0">
-                <Folder size={13} style={{ color: 'var(--accent)' }} /> {t('common.browse')}
-              </GlassButton>
+                <div className="flex items-center gap-2 shrink-0">
+                  <GlassButton onClick={handleSelectCookiesFile} className="whitespace-nowrap flex items-center gap-1.5 text-xs py-2 px-3.5">
+                    <Folder size={13} style={{ color: 'var(--accent)' }} /> {t('common.browse')}
+                  </GlassButton>
+
+                  <GlassButton 
+                    variant="secondary"
+                    onClick={handleValidateCookies}
+                    disabled={validatingCookies || !settings.cookiesPath}
+                    className="whitespace-nowrap flex items-center gap-1.5 text-xs py-2 px-3.5"
+                  >
+                    {validatingCookies ? (
+                      <Loader2 size={13} className="animate-spin" style={{ color: 'var(--accent)' }} />
+                    ) : (
+                      <CheckCircle2 size={13} style={{ color: 'var(--accent)' }} />
+                    )}
+                    {validatingCookies ? t('settings.validating') : t('settings.validateCookies')}
+                  </GlassButton>
+
+                  {settings.cookiesPath && (
+                    <GlassButton
+                      variant="secondary"
+                      onClick={handleClearCookies}
+                      className="whitespace-nowrap flex items-center gap-1 text-xs py-2 px-3 hover:text-rose-500 shrink-0"
+                      title="Remove Cookies File"
+                    >
+                      <Trash2 size={13} className="text-rose-500" /> {t('settings.clearCookies')}
+                    </GlassButton>
+                  )}
+                </div>
+              </div>
             </div>
+
+            {/* Validation Feedback Banner */}
+            {cookieValidationResult && (
+              <div 
+                className={`p-3 rounded-lg text-xs flex items-start gap-2.5 border transition-all ${
+                  cookieValidationResult.valid
+                    ? isLight
+                      ? 'bg-emerald-50/80 border-emerald-300/80 text-emerald-800'
+                      : 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300'
+                    : isLight
+                      ? 'bg-rose-50/80 border-rose-300/80 text-rose-800'
+                      : 'bg-rose-950/30 border-rose-500/30 text-rose-300'
+                }`}
+              >
+                {cookieValidationResult.valid ? (
+                  <CheckCircle2 size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle size={16} className="text-rose-500 shrink-0 mt-0.5" />
+                )}
+                <div className="flex-1">
+                  <span className="font-semibold block mb-0.5">
+                    {cookieValidationResult.valid ? 'Cookies File Validated' : 'Validation Failed'}
+                  </span>
+                  <p className="opacity-90 leading-relaxed">
+                    {cookieValidationResult.message}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

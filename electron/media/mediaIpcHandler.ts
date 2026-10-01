@@ -3,34 +3,14 @@ import fs from 'fs';
 import path from 'path';
 import { mediaEngine } from './mediaEngine';
 import { ExtractionOptions, StandardQuality, TargetContainer } from './types';
+import { getSavedCookiesSettings, validateCookiesFile } from './session/cookieValidator';
 
 let isMediaIpcRegistered = false;
 
 function getSavedCookiesPath(): string | undefined {
-  try {
-    const settingsPath = path.join(app.getPath('userData'), 'settings.json');
-    if (fs.existsSync(settingsPath)) {
-      const raw = fs.readFileSync(settingsPath, 'utf8');
-      const data = JSON.parse(raw);
-      if (data?.cookiesPath && typeof data.cookiesPath === 'string' && data.cookiesPath.trim()) {
-        const rawPath = data.cookiesPath.trim();
-        // Candidate locations if given a relative filename like 'cookies.txt'
-        const candidatePaths = [
-          rawPath,
-          path.resolve(rawPath),
-          path.resolve(app.getPath('desktop'), rawPath),
-          path.resolve(app.getPath('userData'), rawPath),
-        ];
-        for (const candidate of candidatePaths) {
-          if (fs.existsSync(candidate)) {
-            return path.isAbsolute(candidate) ? candidate : path.resolve(candidate);
-          }
-        }
-        return path.isAbsolute(rawPath) ? rawPath : path.resolve(rawPath);
-      }
-    }
-  } catch {}
-  return undefined;
+  const userDataDir = app && typeof app.getPath === 'function' ? app.getPath('userData') : undefined;
+  const settings = getSavedCookiesSettings(userDataDir);
+  return settings.enabled ? settings.cookiesPath : undefined;
 }
 
 /**
@@ -126,6 +106,21 @@ export function setupMediaIPC(): void {
       return { success: true, data: report };
     } catch (err: any) {
       return { success: false, error: err.message || 'Failed to verify binaries.' };
+    }
+  });
+
+  // 4b. Cookies File Validation
+  ipcMain.handle('media:validate-cookies', async (_event, filePath: string) => {
+    try {
+      return validateCookiesFile(filePath);
+    } catch (err: any) {
+      return {
+        valid: false,
+        message: err.message || 'Failed to validate cookies file.',
+        cookieCount: 0,
+        hasYouTubeCookies: false,
+        fileSizeBytes: 0,
+      };
     }
   });
 

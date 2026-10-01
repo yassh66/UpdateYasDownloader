@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateSettings: (settings: any) => ipcRenderer.invoke('update-settings', settings),
   selectFolder: () => ipcRenderer.invoke('select-folder'),
   selectFile: (filterName?: string, extensions?: string[]) => ipcRenderer.invoke('select-file', filterName, extensions),
+  validateCookies: (filePath: string) => ipcRenderer.invoke('validate-cookies', filePath),
   openDownloadDialog: (options?: any) => ipcRenderer.invoke('open-download-dialog', options),
   getTheme: () => ipcRenderer.invoke('get-theme'),
   setTheme: (theme: string) => ipcRenderer.invoke('set-theme', theme),
@@ -64,6 +65,7 @@ const mediaEngineBridge = {
   getFormats: (mediaInfo: any, targetQuality?: string, container?: string) =>
     ipcRenderer.invoke('media:get-formats', mediaInfo, targetQuality, container),
   checkBinaries: () => ipcRenderer.invoke('media:check-binaries'),
+  validateCookies: (filePath: string) => ipcRenderer.invoke('media:validate-cookies', filePath),
   startDownload: (options: any) => ipcRenderer.invoke('media:start-download', options),
   pauseDownload: (jobId: string) => ipcRenderer.invoke('media:pause-download', jobId),
   resumeDownload: (jobId: string) => ipcRenderer.invoke('media:resume-download', jobId),

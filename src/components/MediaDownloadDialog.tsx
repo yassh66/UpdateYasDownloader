@@ -104,6 +104,39 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
 
   const getMediaEngine = () => window.mediaEngine || (window as any).electron?.mediaEngine;
 
+  const formatCleanErrorMessage = (rawError: string | null | undefined): string => {
+    if (!rawError) return '';
+    const lower = rawError.toLowerCase();
+
+    // Check if error relates to YouTube authentication / bot protection or browser cookie failures
+    if (
+      lower.includes('youtube requires authentication') ||
+      lower.includes('sign in to confirm') ||
+      lower.includes('not a bot') ||
+      lower.includes('confirm your age') ||
+      lower.includes('private video') ||
+      lower.includes('dpapi') ||
+      lower.includes('chrome cookie database') ||
+      lower.includes('opera cookies database') ||
+      lower.includes('sqlite') ||
+      lower.includes('http error 403') ||
+      lower.includes('403: forbidden') ||
+      lower.includes('403 forbidden') ||
+      lower.includes('opera missing') ||
+      lower.includes('could not find opera') ||
+      lower.includes('browser session') ||
+      lower.includes('failed to decrypt') ||
+      lower.includes('app-bound') ||
+      lower.includes('cookie database locked')
+    ) {
+      return language === 'fa'
+        ? 'برای این ویدیو نیاز به ورود به حساب یوتیوب است. لطفاً فایل cookies.txt را در تنظیمات اضافه کنید.'
+        : 'YouTube requires authentication. Add a cookies.txt file in Settings > YouTube Authentication.';
+    }
+
+    return rawError;
+  };
+
   const handleMinimize = () => {
     if (onMinimize) {
       onMinimize();
@@ -242,7 +275,11 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
     if (isOpen && window.electronAPI?.getSettings) {
       window.electronAPI.getSettings().then((s) => {
         if (s?.downloadFolder) setSaveFolder(s.downloadFolder);
-        if (s?.cookiesPath) setCookiesPath(s.cookiesPath);
+        if (s?.enableCookiesAuth && s?.cookiesPath) {
+          setCookiesPath(s.cookiesPath);
+        } else {
+          setCookiesPath(undefined);
+        }
       }).catch(() => {});
     }
   }, [isOpen]);
@@ -435,8 +472,12 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
           setExtractError(
             res?.error ||
             (isInsta
-              ? 'Instagram extraction timed out or failed. Please check your connection, VPN, or login cookies.'
-              : 'Could not extract metadata from this URL. Please verify the link or check Settings -> Browser Session if authentication is required.')
+              ? (language === 'fa'
+                  ? 'خطا در دریافت اطلاعات اینستاگرام. لطفاً اتصال اینترنت، فیلترشکن یا کوکی‌های ورود را بررسی کنید.'
+                  : 'Instagram extraction timed out or failed. Please check your connection, VPN, or login cookies.')
+              : (language === 'fa'
+                  ? 'امکان دریافت اطلاعات این پیوند وجود ندارد. در صورت نیاز به احراز هویت، لطفاً فایل cookies.txt را در تنظیمات یوتیوب اضافه کنید.'
+                  : 'Could not extract metadata from this URL. If authentication is required, add a cookies.txt file in Settings > YouTube Authentication.'))
           );
         }
       } else {
@@ -1023,7 +1064,7 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
               <AlertCircle size={18} className="shrink-0 mt-0.5 text-rose-500" />
               <div className="space-y-1">
                 <p className="font-semibold text-sm">Media Stream Analysis Notice</p>
-                <p className="opacity-90 leading-relaxed">{extractError}</p>
+                <p className="opacity-90 leading-relaxed">{formatCleanErrorMessage(extractError)}</p>
               </div>
             </div>
           )}
@@ -1035,7 +1076,7 @@ export default function MediaDownloadDialog(props: MediaDownloadDialogProps = {}
                 <AlertCircle size={18} className="shrink-0 mt-0.5 text-rose-500" />
                 <div className="space-y-1">
                   <p className="font-semibold text-sm">Download Notice</p>
-                  <p className="opacity-90 leading-relaxed">{downloadErrorMessage}</p>
+                  <p className="opacity-90 leading-relaxed">{formatCleanErrorMessage(downloadErrorMessage)}</p>
                 </div>
               </div>
               <GlassButton

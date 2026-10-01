@@ -32,6 +32,7 @@ export interface ClassifiedFailure {
   category: FailureCategory;
   outcome: StrategyOutcome;
   userMessage: string;
+  userMessageFa?: string;
   isRetryable: boolean;
   requiresAuth: boolean;
   recommendedAction: RecommendedAction;
@@ -43,11 +44,12 @@ export class FailureClassifier {
    * Classifies an error message or stderr output into a structured category
    * and determines the optimal recovery action.
    */
-  public static classify(errorOrMessage: any, stderr?: string): ClassifiedFailure {
+  public static classify(errorOrMessage: any, stderr?: string, isYouTubeContext?: boolean): ClassifiedFailure {
     const raw = typeof errorOrMessage === 'string'
       ? errorOrMessage
       : `${errorOrMessage?.message || ''}\n${errorOrMessage?.stderr || ''}\n${stderr || ''}`;
     const combined = raw.toLowerCase();
+    const isYt = isYouTubeContext || combined.includes('youtube') || combined.includes('youtu.be');
 
     // 1. DRM Protected Content
     if (
@@ -79,7 +81,12 @@ export class FailureClassifier {
       return {
         category: 'PRIVATE_CONTENT',
         outcome: 'AUTH_REQUIRED',
-        userMessage: 'This media is private and requires account authorization.',
+        userMessage: isYt
+          ? 'YouTube requires authentication. Add a cookies.txt file in Settings > YouTube Authentication.'
+          : 'This media is private and requires account authorization.',
+        userMessageFa: isYt
+          ? 'برای این ویدیو نیاز به ورود به حساب یوتیوب است. لطفاً فایل cookies.txt را در تنظیمات اضافه کنید.'
+          : 'این محتوا خصوصی است و نیاز به دسترسی به حساب کاربری دارد.',
         isRetryable: false,
         requiresAuth: true,
         recommendedAction: 'REQUIRE_AUTH',
@@ -99,10 +106,16 @@ export class FailureClassifier {
       combined.includes('403: forbidden') ||
       combined.includes('403 forbidden')
     ) {
+      const isAuthNeeded = isYt || combined.includes('sign in') || combined.includes('confirm your age');
       return {
         category: 'BOT_CHALLENGE',
         outcome: 'RETRYABLE_FAILURE',
-        userMessage: 'Anti-bot verification encountered. Rotating client strategy...',
+        userMessage: isAuthNeeded
+          ? 'YouTube requires authentication. Add a cookies.txt file in Settings > YouTube Authentication.'
+          : 'Anti-bot verification encountered. Rotating client strategy...',
+        userMessageFa: isAuthNeeded
+          ? 'برای این ویدیو نیاز به ورود به حساب یوتیوب است. لطفاً فایل cookies.txt را در تنظیمات اضافه کنید.'
+          : 'سیستم ضد ربات فعال شد. در حال تغییر استراتژی اتصال...',
         isRetryable: true,
         requiresAuth: false,
         recommendedAction: 'ROTATE_STRATEGY',
@@ -121,7 +134,12 @@ export class FailureClassifier {
       return {
         category: 'AUTH_REQUIRED',
         outcome: 'AUTH_REQUIRED',
-        userMessage: 'Authentication required. Attempting session/cookie recovery...',
+        userMessage: isYt
+          ? 'YouTube requires authentication. Add a cookies.txt file in Settings > YouTube Authentication.'
+          : 'Authentication required. Please configure authentication cookies in Settings.',
+        userMessageFa: isYt
+          ? 'برای این ویدیو نیاز به ورود به حساب یوتیوب است. لطفاً فایل cookies.txt را در تنظیمات اضافه کنید.'
+          : 'برای دسترسی به این محتوا نیاز به ورود به حساب کاربری است. لطفاً کوکی‌ها را در تنظیمات وارد نمایید.',
         isRetryable: true,
         requiresAuth: true,
         recommendedAction: 'ROTATE_STRATEGY',
