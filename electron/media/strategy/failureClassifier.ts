@@ -87,7 +87,31 @@ export class FailureClassifier {
       };
     }
 
-    // 3. Bot Challenge & Verification Blockage
+    // 3. Cookie Database Lock / Inaccessible Browser Cookies
+    if (
+      combined.includes('database is locked') ||
+      combined.includes('could not copy cookie') ||
+      combined.includes('cookie database') ||
+      combined.includes('unable to extract cookies') ||
+      combined.includes('extracting cookies from') ||
+      combined.includes('cookie file is locked') ||
+      combined.includes('failed to decrypt cookie') ||
+      combined.includes('dpapi decryption failed') ||
+      (combined.includes('permission denied') && combined.includes('cookie')) ||
+      (combined.includes('used by another process') && combined.includes('cookie'))
+    ) {
+      return {
+        category: 'BOT_CHALLENGE',
+        outcome: 'RETRYABLE_FAILURE',
+        userMessage: 'Browser session locked or in-use. Transitioning to next recovery strategy...',
+        isRetryable: true,
+        requiresAuth: false,
+        recommendedAction: 'ROTATE_STRATEGY',
+        rawMessage: raw,
+      };
+    }
+
+    // 4. Bot Challenge & Verification Blockage
     if (
       combined.includes('sign in to confirm') ||
       combined.includes('not a bot') ||
