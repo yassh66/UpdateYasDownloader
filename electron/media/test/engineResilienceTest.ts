@@ -418,6 +418,97 @@ async function runResilienceTests() {
   const isolatedCheck = getSavedCookiesSettings(emptyIsolatedDir);
   assert(isolatedCheck.enabled === false, '11.4: Isolated environment does not hallucinate cookies from Desktop');
 
+  // ====================================================
+  // TEST 12: Release Candidate Clean Windows User & YouTube Validation
+  // ====================================================
+  console.log('\n12. Testing Release Candidate Clean Windows User & YouTube Scenarios:');
+
+  // 12.1 Clean User Simulation:
+  // Zero settings, no system node/python/ytdlp in PATH, resourcesPath set to dist-app/win-unpacked/resources
+  const cleanUserDir = path.join(os.tmpdir(), `yas_clean_user_${Date.now()}`);
+  fs.mkdirSync(cleanUserDir, { recursive: true });
+
+  const cleanSettings = getSavedCookiesSettings(cleanUserDir);
+  assert(cleanSettings.enabled === false, '12.1: Clean Windows user starts with cookies disabled by default');
+
+  // Verify binary resolution from packaged resources
+  const packagedResources = path.resolve(process.cwd(), 'dist-app', 'win-unpacked', 'resources');
+  if (fs.existsSync(packagedResources)) {
+    const originalResourcesPath = process.resourcesPath;
+    try {
+      (process as any).resourcesPath = packagedResources;
+      const packagedYtDlp = resolveBinaryPath('yt-dlp');
+      assert(packagedYtDlp.includes('dist-app') && packagedYtDlp.endsWith('yt-dlp.exe'), '12.1: Packaged binary resolution finds yt-dlp.exe in resources/bin/win-x64');
+      assert(fs.existsSync(packagedYtDlp), '12.1: Resolved packaged yt-dlp binary physically exists on disk');
+
+      const packagedFfmpeg = resolveBinaryPath('ffmpeg');
+      assert(packagedFfmpeg.includes('dist-app') && packagedFfmpeg.endsWith('ffmpeg.exe'), '12.1: Packaged binary resolution finds ffmpeg.exe in resources/bin/win-x64');
+      assert(fs.existsSync(packagedFfmpeg), '12.1: Resolved packaged ffmpeg binary physically exists on disk');
+    } finally {
+      (process as any).resourcesPath = originalResourcesPath;
+    }
+  }
+
+  // 12.2 YouTube Case A: Public Video without cookies
+  const ytPublicUrl = 'https://www.youtube.com/watch?v=7ghSziUQnhs';
+  const publicArgs = youtubePlatformExtractor.buildYtdlpArgs(ytPublicUrl, {});
+  assert(!publicArgs.includes('--cookies'), '12.2: Case A (Public video) does NOT include --cookies');
+  assert(!publicArgs.includes('--cookies-from-browser'), '12.2: Case A (Public video) does NOT include --cookies-from-browser');
+
+  // 12.3 YouTube Case B: Protected Video with cookies.txt in Settings
+  const userCookiesFile = path.join(cleanUserDir, 'cookies.txt');
+  fs.writeFileSync(
+    userCookiesFile,
+    '# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t1900000000\tLOGIN_INFO\tAFmmF2cwRQIhA...\n.youtube.com\tTRUE\t/\tTRUE\t1900000000\tSID\tsample_sid_val\n'
+  );
+  fs.writeFileSync(
+    path.join(cleanUserDir, 'settings.json'),
+    JSON.stringify({ enableCookiesAuth: true, cookiesPath: userCookiesFile }, null, 2)
+  );
+
+  const reloadedCleanSettings = getSavedCookiesSettings(cleanUserDir);
+  assert(reloadedCleanSettings.enabled === true, '12.3: Case B detects enabled cookies in Settings');
+  assert(reloadedCleanSettings.cookiesPath === userCookiesFile, '12.3: Case B resolves user-configured cookies.txt');
+
+  const protectedArgs = youtubePlatformExtractor.buildYtdlpArgs(ytPublicUrl, { cookiesPath: reloadedCleanSettings.cookiesPath });
+  assert(protectedArgs.includes('--cookies'), '12.3: Case B includes --cookies flag');
+  assert(protectedArgs.includes(path.resolve(userCookiesFile)), '12.3: Case B includes resolved cookies path');
+  assert(!protectedArgs.includes('--cookies-from-browser'), '12.3: Case B does NOT contain --cookies-from-browser');
+
+  // 12.4 YouTube Case C: Invalid Cookies File
+  const invalidCookiesFile = path.join(cleanUserDir, 'invalid_cookies.txt');
+  fs.writeFileSync(invalidCookiesFile, 'This is just a random text file without Netscape format.\nNo cookies here.');
+  const invalidValResult = validateCookiesFile(invalidCookiesFile);
+  assert(invalidValResult.valid === false, '12.4: Case C flags invalid text file as invalid');
+  assert(invalidValResult.hasYouTubeCookies === false, '12.4: Case C detects lack of YouTube session cookies');
+
+  // 12.5 YouTube Case D: Expired Cookies / Bot challenge sanitization
+  const expiredChallenge = FailureClassifier.classify(
+    'ERROR: [youtube] 7ghSziUQnhs: Sign in to confirm you’re not a bot. This helps protect our community. DPAPI decrypt error sqlite3.OperationalError: database is locked',
+    'stderr trace',
+    true
+  );
+  assert(expiredChallenge.category === 'BOT_CHALLENGE', '12.5: Case D classifies bot challenge correctly');
+  assert(!expiredChallenge.userMessage.includes('DPAPI'), '12.5: User message DOES NOT contain DPAPI');
+  assert(!expiredChallenge.userMessage.includes('sqlite'), '12.5: User message DOES NOT contain sqlite');
+  assert(!expiredChallenge.userMessage.includes('database is locked'), '12.5: User message DOES NOT contain database lock');
+  assert(expiredChallenge.userMessage.includes('YouTube requires authentication'), '12.5: User message provides clean YouTube instructions');
+  assert(expiredChallenge.userMessageFa?.includes('برای این ویدیو نیاز به ورود به حساب یوتیوب است'), '12.5: Persian message provides clean instructions');
+
+  // 12.6 Verify Installer Binary Integrity
+  const installerPath = path.resolve(process.cwd(), 'dist-app', 'YAS Downloader Setup 1.0.0.exe');
+  assert(fs.existsSync(installerPath), '12.6: Windows NSIS installer file physically exists');
+  const installerStat = fs.statSync(installerPath);
+  assert(installerStat.size > 100 * 1024 * 1024, '12.6: Installer file size is complete and > 100MB');
+
+  // Cleanup clean user dir
+  try {
+    fs.unlinkSync(userCookiesFile);
+    fs.unlinkSync(invalidCookiesFile);
+    fs.unlinkSync(path.join(cleanUserDir, 'settings.json'));
+    fs.rmdirSync(cleanUserDir);
+  } catch {}
+
   // Cleanup Section 11 files
   try { fs.unlinkSync(prodTestCookiePath); } catch {}
   try { fs.unlinkSync(prodSettingsFile); fs.rmdirSync(prodUserDataDir); } catch {}

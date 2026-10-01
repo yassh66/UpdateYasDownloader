@@ -89,10 +89,14 @@ export function resolveBinaryPath(baseName: string): string {
   if (process.resourcesPath) {
     candidatePaths.push(
       path.join(process.resourcesPath, 'bin', binName),
+      path.join(process.resourcesPath, 'bin', `${baseName}.exe`),
       path.join(process.resourcesPath, 'bin', 'win-x64', binName),
+      path.join(process.resourcesPath, 'bin', 'win-x64', `${baseName}.exe`),
       path.join(process.resourcesPath, 'bin', isWin ? 'win' : process.platform, binName),
       path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', binName),
-      path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', 'win-x64', binName)
+      path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', `${baseName}.exe`),
+      path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', 'win-x64', binName),
+      path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', 'win-x64', `${baseName}.exe`)
     );
   }
 
