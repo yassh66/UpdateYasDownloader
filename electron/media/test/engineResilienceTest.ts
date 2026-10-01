@@ -187,47 +187,6 @@ async function runResilienceTests() {
   assert(netscapeFormatted.includes('# Netscape HTTP Cookie File'), 'Netscape header correctly formatted');
   assert(netscapeFormatted.includes('.youtube.com\tTRUE\t/\tTRUE\t1800000000\tPREF\ttz=UTC'), 'Netscape cookie line format matches curl standard');
 
-  // ====================================================
-  // TEST 7: Automatic Browser Resolver & Fallback Logic
-  // ====================================================
-  console.log('\n7. Testing Automatic Browser Resolver & Priority Ladder:');
-  const { AutomaticBrowserResolver, automaticBrowserResolver } = await import('../session/automaticBrowserResolver');
-  
-  // Test locked database error classification
-  const lockErr1 = FailureClassifier.classify('sqlite3.OperationalError: database is locked');
-  assert(lockErr1.category === 'BOT_CHALLENGE', 'Database lock error categorized correctly');
-  assert(lockErr1.isRetryable === true, 'Database lock error is marked retryable');
-  assert(lockErr1.recommendedAction === 'ROTATE_STRATEGY', 'Database lock triggers ROTATE_STRATEGY');
-
-  const lockErr2 = FailureClassifier.classify('Could not copy Chrome cookie database');
-  assert(lockErr2.isRetryable === true, 'Cookie database copy error is retryable');
-
-  const lockErr3 = FailureClassifier.classify('Cookie file is locked by another process');
-  assert(lockErr3.recommendedAction === 'ROTATE_STRATEGY', 'Process lock triggers ROTATE_STRATEGY');
-
-  // Test YouTube Strategy Ladder Ordering:
-  // 1. Authenticated browser (if available) -> 2. Alternate browsers -> 3. Standard yt-dlp -> 4. iOS -> 5. Android -> 6. TV -> 7. Custom cookies
-  const sampleYtLadder = extractionStrategyManager.getStrategyLadder('youtube', 'https://www.youtube.com/watch?v=abcdefghijk');
-  const standardWebIdx = sampleYtLadder.findIndex(s => s.id === 'tier3_youtube_web_embedded');
-  const iosIdx = sampleYtLadder.findIndex(s => s.id === 'tier4_youtube_ios');
-  const androidIdx = sampleYtLadder.findIndex(s => s.id === 'tier4_youtube_android');
-  const tvIdx = sampleYtLadder.findIndex(s => s.id === 'tier4_youtube_tv_embedded');
-
-  assert(standardWebIdx !== -1, 'YouTube ladder includes standard web extraction');
-  assert(iosIdx !== -1, 'YouTube ladder includes iOS rotation');
-  assert(androidIdx !== -1, 'YouTube ladder includes Android rotation');
-  assert(tvIdx !== -1, 'YouTube ladder includes TV rotation');
-  assert(standardWebIdx < iosIdx, 'Standard web extraction precedes iOS client');
-  assert(iosIdx < androidIdx, 'iOS client precedes Android client');
-  assert(androidIdx < tvIdx, 'Android client precedes TV client');
-
-  // Test diagnostic text format
-  const res = automaticBrowserResolver.resolveBrowserSessions();
-  assert(typeof res.diagnosticsText === 'string', 'Diagnostics text is generated');
-  assert(res.diagnosticsText.includes('Detected browsers:'), 'Diagnostics includes "Detected browsers:" header');
-  assert(res.diagnosticsText.includes('Selected browser session:'), 'Diagnostics includes "Selected browser session:"');
-  assert(res.diagnosticsText.includes('Reason:'), 'Diagnostics includes "Reason:" header');
-
   console.log('====================================================');
   console.log(` SUMMARY: ${passedTests}/${totalTests} Tests Passed (${Math.round((passedTests / totalTests) * 100)}%)`);
   console.log('====================================================\n');

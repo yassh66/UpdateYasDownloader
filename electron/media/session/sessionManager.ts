@@ -6,23 +6,16 @@ import {
   SupportedBrowser,
 } from './cookieProfiles';
 import { browserCookieReader, BrowserCookieReader } from './browserCookieReader';
-import {
-  automaticBrowserResolver,
-  AutomaticBrowserResolver,
-  ResolvedBrowserCandidate,
-  BrowserResolutionResult,
-} from './automaticBrowserResolver';
 
 export class SessionManager {
   private config: SessionManagerConfig = {
-    globalEnabled: true, // Default to automatic browser session detection
+    globalEnabled: false,
     defaultBrowser: undefined,
     defaultProfileId: undefined,
     platformConfigs: {},
   };
 
   private cookieReader: BrowserCookieReader = browserCookieReader;
-  private autoResolver: AutomaticBrowserResolver = automaticBrowserResolver;
 
   constructor(initialConfig?: Partial<SessionManagerConfig>) {
     if (initialConfig) {
@@ -76,54 +69,47 @@ export class SessionManager {
   }
 
   /**
-   * Resolves the best candidate browser session using automatic intelligent discovery.
-   */
-  public resolveBestBrowserSession(): ResolvedBrowserCandidate | null {
-    return this.autoResolver.resolveBrowserSessions().bestCandidate;
-  }
-
-  /**
-   * Returns a complete list of valid browser session args in prioritized order.
-   */
-  public getPrioritizedBrowserSessions(): string[] {
-    return this.autoResolver.getAllCookiesFromBrowserArgs();
-  }
-
-  /**
    * Resolves the yt-dlp `--cookies-from-browser` argument for a given platform.
-   * Uses explicit user config if set; otherwise automatically selects the highest-confidence
-   * installed browser session without requiring any user intervention.
+   * Returns undefined if sessions are disabled or unavailable.
+   *
+   * Example return values:
+   *  - 'chrome'
+   *  - 'chrome:Profile 1'
+   *  - 'edge:Default'
+   *  - 'brave'
    */
   public getYtDlpCookiesFromBrowserArg(platform?: SupportedPlatform): string | undefined {
-    // 1. Check platform-specific explicit configuration first
+    let browser: SupportedBrowser | undefined;
+    let profileId: string | undefined;
+
+    // Check platform-specific configuration first
     if (platform && this.config.platformConfigs[platform]) {
       const platformConfig = this.config.platformConfigs[platform]!;
-      if (!platformConfig.enabled) {
+      if (platformConfig.enabled) {
+        browser = platformConfig.browser;
+        profileId = platformConfig.profileId;
+      } else {
         // Explicitly disabled for this platform
         return undefined;
       }
-      if (platformConfig.browser && this.cookieReader.validateBrowserProfile(platformConfig.browser, platformConfig.profileId)) {
-        if (platformConfig.profileId && platformConfig.profileId !== 'Default') {
-          return `${platformConfig.browser}:${platformConfig.profileId}`;
-        }
-        return platformConfig.browser;
-      }
+    } else if (this.config.globalEnabled && this.config.defaultBrowser) {
+      // Fallback to global setting if enabled
+      browser = this.config.defaultBrowser;
+      profileId = this.config.defaultProfileId;
     }
 
-    // 2. Check explicit global default browser override if configured
-    if (this.config.defaultBrowser && this.cookieReader.validateBrowserProfile(this.config.defaultBrowser, this.config.defaultProfileId)) {
-      if (this.config.defaultProfileId && this.config.defaultProfileId !== 'Default') {
-        return `${this.config.defaultBrowser}:${this.config.defaultProfileId}`;
-      }
-      return this.config.defaultBrowser;
+    if (!browser) return undefined;
+
+    // Validate that browser is installed on host
+    if (!this.cookieReader.validateBrowserProfile(browser, profileId)) {
+      return undefined;
     }
 
-    // 3. Automatic intelligent browser resolver (Brave -> Chrome -> Edge -> Firefox -> Opera -> Vivaldi)
-    if (this.config.globalEnabled) {
-      return this.autoResolver.getBestCookiesFromBrowserArg();
+    if (profileId && profileId !== 'Default') {
+      return `${browser}:${profileId}`;
     }
 
-    return undefined;
+    return browser;
   }
 
   /**
@@ -149,13 +135,6 @@ export class SessionManager {
    */
   public detectAvailableBrowsers(): BrowserInstallation[] {
     return this.cookieReader.getInstalledBrowsers();
-  }
-
-  /**
-   * Returns a diagnostic report of discovered browser sessions.
-   */
-  public getResolutionDiagnostics(): BrowserResolutionResult {
-    return this.autoResolver.resolveBrowserSessions();
   }
 }
 
